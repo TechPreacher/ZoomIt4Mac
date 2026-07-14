@@ -11,6 +11,8 @@ final class OverlayWindowController {
         didSet { contentView.snapshot = snapshot }
     }
 
+    var compositingView: NSView { contentView }
+
     init(screen: NSScreen, coordinator: SessionCoordinator) {
         self.screen = screen
         self.contentView = OverlayContentView(

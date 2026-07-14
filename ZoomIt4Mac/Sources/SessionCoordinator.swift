@@ -232,8 +232,14 @@ final class SessionCoordinator {
         case .notifyCaptureFailure:
             NSSound.beep()
             NSLog("screen capture failed")
-        case .saveScreenshot, .copyScreenshot:
-            break // Task 18 replaces with ScreenshotComposer calls
+        case .saveScreenshot:
+            if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
+                ScreenshotComposer.save(image)
+            }
+        case .copyScreenshot:
+            if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
+                ScreenshotComposer.copy(image)
+            }
         }
     }
 
@@ -284,5 +290,22 @@ final class SessionCoordinator {
         for controller in overlays.values {
             controller.render(state: machine.state)
         }
+    }
+
+    /// The overlay for the screen being annotated: the zoom screen when
+    /// drawing on a frozen zoom, else the screen under the mouse.
+    private func activeOverlayView() -> NSView? {
+        let zoomScreenFrame: CGRect? = switch machine.state {
+        case .draw(let ctx): ctx.zoom?.screen
+        case .type(let ctx, _): ctx.zoom?.screen
+        default: nil
+        }
+        let screen: NSScreen? = if let zoomScreenFrame {
+            NSScreen.screens.first { $0.frame == zoomScreenFrame }
+        } else {
+            NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main
+        }
+        guard let screen else { return nil }
+        return overlays[screen.displayID]?.compositingView
     }
 }

@@ -18,6 +18,7 @@ final class SessionCoordinator {
     private let permissions: PermissionCoordinator
     private var overlays: [CGDirectDisplayID: OverlayWindowController] = [:]
     private(set) var snapshots: [CGDirectDisplayID: CGImage] = [:]
+    private var activeTracker: ShapeTracker?
 
     var currentState: SessionState { machine.state }
 
@@ -52,22 +53,135 @@ final class SessionCoordinator {
             send(.escape)
             return
         }
+
+        if case .type = machine.state {
+            handleTypeKeyDown(event)
+            return
+        }
+
+        let cmd = event.modifierFlags.contains(.command)
+        let chars = event.charactersIgnoringModifiers?.lowercased() ?? ""
+
+        if cmd {
+            switch chars {
+            case "z": send(.keyCommand(.undo))
+            case "s": send(.keyCommand(.save))
+            case "c": send(.keyCommand(.copy))
+            default: break
+            }
+            return
+        }
+
         if case .zoom = machine.state {
             switch event.keyCode {
             case 126: send(.zoomChanged(factor: 1.25)) // ↑
             case 125: send(.zoomChanged(factor: 0.8))  // ↓
             default: break
             }
+            return
+        }
+
+        if case .draw = machine.state {
+            switch chars {
+            case "r": send(.keyCommand(.color(.red)))
+            case "g": send(.keyCommand(.color(.green)))
+            case "b": send(.keyCommand(.color(.blue)))
+            case "o": send(.keyCommand(.color(.orange)))
+            case "y": send(.keyCommand(.color(.yellow)))
+            case "p": send(.keyCommand(.color(.pink)))
+            case "e": send(.keyCommand(.eraseAll))
+            case "w": send(.keyCommand(.whiteboard))
+            case "k": send(.keyCommand(.blackboard))
+            case "t": send(.keyCommand(.enterType))
+            default:
+                if event.keyCode == 48 { tabHeld = true } // Tab: ellipse modifier
+            }
         }
     }
 
-    func handleMouseDown(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
-        send(.leftMouseDown(global))
+    func handleKeyUp(_ event: NSEvent) {
+        if event.keyCode == 48 { tabHeld = false }
     }
 
-    func handleMouseDragged(global: CGPoint, modifiers: NSEvent.ModifierFlags) {}
+    private var tabHeld = false
 
-    func handleMouseUp(global: CGPoint, modifiers: NSEvent.ModifierFlags) {}
+    private func handleTypeKeyDown(_ event: NSEvent) {
+        if event.modifierFlags.contains(.command) {
+            switch event.charactersIgnoringModifiers {
+            case "+", "=": send(.keyCommand(.fontIncrease))
+            case "-": send(.keyCommand(.fontDecrease))
+            default: break
+            }
+            return
+        }
+        if event.keyCode == 51 { // Delete
+            send(.deleteBackward)
+            return
+        }
+        if let chars = event.characters, !chars.isEmpty,
+           !chars.unicodeScalars.allSatisfy({ CharacterSet.controlCharacters.contains($0) }) {
+            send(.textInput(chars))
+        }
+    }
+
+    /// Map a global screen point into annotation (image) space for the
+    /// active draw context: identity for plain draw, screen→image when
+    /// drawing on a frozen zoom.
+    private func annotationPoint(for global: CGPoint) -> CGPoint {
+        guard case let .draw(ctx) = machine.state, let zoom = ctx.zoom else { return global }
+        let visible = ZoomGeometry.visibleRect(mouse: zoom.mouse, screen: zoom.screen, level: zoom.level)
+        return ZoomGeometry.screenToImage(global, visibleRect: visible, screen: zoom.screen)
+    }
+
+    private func shapeKind(for modifiers: NSEvent.ModifierFlags) -> ShapeKind {
+        let shift = modifiers.contains(.shift)
+        let control = modifiers.contains(.control)
+        if tabHeld { return .ellipse }
+        if control && shift { return .arrow }
+        if control { return .rectangle }
+        if shift { return .line }
+        return .freehand
+    }
+
+    func handleMouseDown(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        switch machine.state {
+        case .zoom, .type:
+            // zoom: enters draw; type: moves caret (both via the state machine)
+            send(.leftMouseDown(annotationPointForType(global)))
+        case .draw(let ctx):
+            activeTracker = ShapeTracker(
+                shape: shapeKind(for: modifiers),
+                start: annotationPoint(for: global),
+                color: ctx.canvas.color,
+                width: ctx.canvas.penWidth
+            )
+        default:
+            break
+        }
+    }
+
+    /// Type-mode caret uses the same image-space mapping as annotations.
+    private func annotationPointForType(_ global: CGPoint) -> CGPoint {
+        guard case let .type(ctx, _) = machine.state, let zoom = ctx.zoom else { return global }
+        let visible = ZoomGeometry.visibleRect(mouse: zoom.mouse, screen: zoom.screen, level: zoom.level)
+        return ZoomGeometry.screenToImage(global, visibleRect: visible, screen: zoom.screen)
+    }
+
+    func handleMouseDragged(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        guard activeTracker != nil else { return }
+        activeTracker?.update(annotationPoint(for: global))
+        renderAll()
+    }
+
+    func handleMouseUp(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        guard let tracker = activeTracker else { return }
+        activeTracker = nil
+        if let annotation = tracker.finish() {
+            send(.annotationAdded(annotation))
+        } else {
+            renderAll()
+        }
+    }
 
     func handleRightMouseDown() {
         send(.rightMouseAction)
@@ -75,8 +189,13 @@ final class SessionCoordinator {
 
     func handleScroll(deltaY: CGFloat, modifiers: NSEvent.ModifierFlags) {
         guard deltaY != 0 else { return }
-        if case .zoom = machine.state {
+        switch machine.state {
+        case .zoom:
             send(.zoomChanged(factor: deltaY > 0 ? 1.1 : 1 / 1.1))
+        case .draw where modifiers.contains(.command):
+            send(.penWidthChanged(delta: deltaY > 0 ? 1 : -1))
+        default:
+            break
         }
     }
 
@@ -92,7 +211,9 @@ final class SessionCoordinator {
         }
     }
 
-    func currentPreview() -> Annotation? { nil } // in-flight shape: Task 17
+    func currentPreview() -> Annotation? {
+        activeTracker?.preview()
+    }
 
     // MARK: - Effects
 

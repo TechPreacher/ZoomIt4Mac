@@ -143,12 +143,24 @@ public struct SessionStateMachine: Sendable {
     }
 
     private mutating func handleZoom(_ event: SessionEvent, _ ctx: ZoomContext) -> [SessionEffect] {
+        var ctx = ctx
         switch event {
         case .escape, .rightMouseAction, .hotkey(.toggleZoom, _, _):
             state = .idle
             return [.dismissOverlays]
+        case .zoomChanged(let factor):
+            ctx.level = ZoomGeometry.clamp(ctx.level * factor)
+            state = .zoom(ctx)
+            return [.render]
+        case .mouseMoved(let point):
+            ctx.mouse = point
+            state = .zoom(ctx)
+            return [.render]
+        case .leftMouseDown, .hotkey(.toggleDraw, _, _):
+            state = .draw(DrawContext(canvas: newCanvas(), zoom: ctx))
+            return [.render]
         default:
-            return [] // zoom interactions: Task 11
+            return []
         }
     }
 

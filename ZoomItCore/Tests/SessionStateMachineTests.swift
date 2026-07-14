@@ -119,3 +119,60 @@ struct SessionLifecycleTests {
         #expect(ctx.level == 4)
     }
 }
+
+struct SessionZoomInteractionTests {
+    @Test func zoomFactorMultipliesAndRenders() {
+        var m = zoomedMachine() // at 2.0
+        let fx = m.handle(.zoomChanged(factor: 1.5))
+        #expect(fx == [.render])
+        guard case let .zoom(ctx) = m.state else { Issue.record("expected zoom"); return }
+        #expect(ctx.level == 3.0)
+    }
+
+    @Test func zoomClampsAtMax() {
+        var m = zoomedMachine()
+        m.handle(.zoomChanged(factor: 100))
+        guard case let .zoom(ctx) = m.state else { Issue.record("expected zoom"); return }
+        #expect(ctx.level == 8.0)
+    }
+
+    @Test func zoomClampsAtMin() {
+        var m = zoomedMachine()
+        m.handle(.zoomChanged(factor: 0.01))
+        guard case let .zoom(ctx) = m.state else { Issue.record("expected zoom"); return }
+        #expect(ctx.level == 1.0)
+    }
+
+    @Test func nonFiniteFactorFallsBackToMin() {
+        var m = zoomedMachine()
+        m.handle(.zoomChanged(factor: .nan))
+        guard case let .zoom(ctx) = m.state else { Issue.record("expected zoom"); return }
+        #expect(ctx.level == 1.0)
+    }
+
+    @Test func mouseMoveUpdatesPanAndRenders() {
+        var m = zoomedMachine()
+        let p = CGPoint(x: 10, y: 10)
+        let fx = m.handle(.mouseMoved(p))
+        #expect(fx == [.render])
+        guard case let .zoom(ctx) = m.state else { Issue.record("expected zoom"); return }
+        #expect(ctx.mouse == p)
+    }
+
+    @Test func leftClickEntersDrawOnZoomPreservingContext() {
+        var m = zoomedMachine()
+        m.handle(.zoomChanged(factor: 2)) // now 4.0
+        let fx = m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        #expect(fx == [.render])
+        guard case let .draw(ctx) = m.state else { Issue.record("expected draw"); return }
+        #expect(ctx.zoom?.level == 4.0)
+        #expect(ctx.canvas.color == Settings.default.penColor)
+    }
+
+    @Test func drawHotkeyDuringZoomEntersDrawOnZoom() {
+        var m = zoomedMachine()
+        m.handle(.hotkey(.toggleDraw, mouse: testMouse, screen: testScreen))
+        guard case let .draw(ctx) = m.state else { Issue.record("expected draw"); return }
+        #expect(ctx.zoom != nil)
+    }
+}

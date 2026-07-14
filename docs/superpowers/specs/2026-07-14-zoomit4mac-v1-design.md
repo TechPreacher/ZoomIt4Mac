@@ -53,7 +53,7 @@ Event flow is one-directional: hotkey / keyboard / mouse events → `SessionStat
 
 ### Zoom (⌃1)
 
-- Trigger → freeze: one snapshot per display; overlay windows appear showing the snapshot at 1× centered on the mouse, then animate to the default zoom level (2×, configurable).
+- Trigger → freeze: one snapshot per display; overlay windows appear showing the snapshot directly at the default zoom level (2×, configurable), centered on the mouse. (An animated 1×→default zoom-in transition is post-v1 polish.)
 - Zoom control: scroll wheel, trackpad pinch, or ↑/↓ arrows. Range 1×–8×, smooth stepping.
 - Pan: mouse movement pans via the ZoomIt mouse-follow mapping (all screen edges reachable at every zoom level).
 - Left-click enters draw mode on the frozen zoomed image. Right-click or Esc exits zoom and dismisses overlays. ⌃1 again also exits.
@@ -84,7 +84,7 @@ Hotkey recorder for both features (with conflict highlighting), default zoom lev
 - **Screen Recording permission**: checked lazily on first zoom trigger via an `SCShareableContent` fetch. If missing: non-blocking alert with an "Open System Settings" deep link (`x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`), and zoom aborts cleanly back to `.idle`. Draw and Type on a transparent overlay require no permission, so the app is useful before permission is granted.
 - **No Accessibility permission in v1**: Carbon hotkeys plus local event monitors inside our own key windows are sufficient.
 - **Hotkey registration failure** (combo taken by another app): warning badge on the status item; the conflicting combo is highlighted red in Settings. Never a silent loss of a hotkey.
-- **Snapshot failure** (ScreenCaptureKit error, display disconnected mid-capture): state machine receives `.captureFailed`, returns to `.idle`, shows a transient notification. All SCK calls are `async throws` and funnel into one failure handler; no crash paths from capture errors.
+- **Snapshot failure** (ScreenCaptureKit error, display disconnected mid-capture): state machine receives `.captureFailed`, returns to `.idle`, signals audibly (beep) and logs; a richer transient notification is post-v1 polish. All SCK calls are `async throws` and funnel into one failure handler; no crash paths from capture errors.
 - **Display topology change during an active mode**: on `NSApplication.didChangeScreenParametersNotification`, force-exit to `.idle` and dispose all overlays (simple and safe; no overlay migration).
 - **Corrupt persisted settings**: fall back to defaults and log; never block launch.
 

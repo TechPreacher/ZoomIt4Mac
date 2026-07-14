@@ -23,7 +23,7 @@ public struct DrawContext: Equatable, Sendable {
     }
 }
 
-public enum CaptureFailure: Equatable, Sendable {
+public enum CaptureFailure: Error, Equatable, Sendable {
     case permissionDenied, captureError
 }
 

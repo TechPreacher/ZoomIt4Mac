@@ -112,6 +112,42 @@ xcodebuild -project ZoomIt4Mac.xcodeproj -scheme ZoomIt4Mac test \
 
 `.xcodeproj` is generated output and stays out of git; `project.yml` is the source of truth.
 
-## Out of scope for v1 (planned later)
+## Deferred features (out of scope for v1, revisit later)
 
-Break timer (⌃3), Live Zoom (⌃4), screen recording (⌃5), DemoType, blur/highlighter pen, right-aligned type, Mac App Store distribution.
+Each entry lists the ZoomIt behavior to mirror and the expected macOS implementation angle, so future versions can pick these up without re-deriving the research.
+
+### Break Timer (⌃3)
+
+Full-screen countdown with configurable duration, elapsed/remaining display, optional background image or blurred desktop, timer position options, and sound on expiry. Implementation: mostly independent of the zoom/draw machinery — a dedicated full-screen overlay window plus a `BreakTimer` model in `ZoomItCore` (start/pause/resume/expiry, formatting). Low risk; natural first post-v1 feature. Advanced ZoomIt options (show time of day when expired, run on specific display) can follow incrementally.
+
+### Live Zoom (⌃4)
+
+Magnified view where screen content keeps updating (video playback, demos) instead of a frozen snapshot. Implementation: continuous capture via ScreenCaptureKit `SCStream` rendering into the overlay's layer, with the same `ZoomGeometry` pan/zoom math. Must exclude our overlay windows from the stream to avoid feedback loops (`SCContentFilter` window exclusion). GPU/performance sensitive; needs frame-rate and latency tuning. On macOS the system "Hover Text"/Accessibility zoom overlaps somewhat — our version stays app-controlled.
+
+### Screen Recording (⌃5)
+
+Record full screen or zoomed region to a movie file, with optional microphone audio and click highlighting; ZoomIt ≥ v6 parity. Implementation: `SCStream` + `SCRecordingOutput` (macOS 15+) or `AVAssetWriter` fed by stream frames (macOS 14). Adds microphone TCC permission when audio enabled. Consider raising the deployment target to macOS 15 when this lands to use `SCRecordingOutput` directly.
+
+### Snip / region screenshot (⌃6 in recent ZoomIt)
+
+Rectangular region selection copied/saved as an image. Implementation: selection rectangle on the existing overlay window plus cropped snapshot; small feature once overlay plumbing exists.
+
+### DemoType
+
+Types a scripted text file automatically into the foreground app, simulating live typing (with speed control). Implementation: `CGEvent` keyboard synthesis — **requires Accessibility permission**, which v1 deliberately avoids. Adding this changes the permission story; gate it so the permission is only requested when the feature is first used.
+
+### Blur / highlighter pens (X key and highlight mode in draw)
+
+Blur tool obscures a dragged region; highlighter draws translucent wide strokes. Implementation: additional annotation types in `AnnotationCanvas` (translucent stroke is trivial; blur needs Core Image `CIGaussianBlur` applied to the underlying snapshot region — draw-on-zoom only, since a transparent overlay has nothing to blur).
+
+### Right-aligned Type (⇧T)
+
+Text grows leftward from the click point. Small addition to `TypeTool` (alignment property + layout).
+
+### Screen-drawing niceties
+
+ZoomIt extras worth batching into a draw-polish release: center-screen crosshair origin (drawing from center with modifier), degree/pixel readouts while drawing lines, copy-with-cursor in saved screenshots.
+
+### Distribution expansion
+
+Mac App Store is likely permanently out (sandbox incompatible with capture + future event synthesis). Homebrew cask (`brew install --cask zoomit4mac`) is the realistic reach channel once Developer ID notarization pipeline exists; add Sparkle for in-app updates when distributing outside the App Store.

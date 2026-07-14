@@ -165,10 +165,80 @@ public struct SessionStateMachine: Sendable {
     }
 
     private mutating func handleDraw(_ event: SessionEvent, _ ctx: DrawContext) -> [SessionEffect] {
-        return [] // Task 12
+        var ctx = ctx
+        switch event {
+        case .annotationAdded(let annotation):
+            ctx.canvas.add(annotation)
+        case .keyCommand(.color(let color)):
+            ctx.canvas.color = color
+        case .keyCommand(.undo), .rightMouseAction:
+            ctx.canvas.undo()
+        case .keyCommand(.eraseAll):
+            ctx.canvas.eraseAll()
+        case .keyCommand(.whiteboard):
+            ctx.canvas.background = ctx.canvas.background == .white ? .transparent : .white
+        case .keyCommand(.blackboard):
+            ctx.canvas.background = ctx.canvas.background == .black ? .transparent : .black
+        case .penWidthChanged(let delta):
+            ctx.canvas.penWidth += delta
+        case .keyCommand(.enterType):
+            state = .type(ctx, TypeTool())
+            return [.render]
+        case .keyCommand(.save):
+            return [.saveScreenshot]
+        case .keyCommand(.copy):
+            return [.copyScreenshot]
+        case .escape, .hotkey(.toggleDraw, _, _):
+            if let zoom = ctx.zoom {
+                state = .zoom(zoom)
+                return [.render]
+            }
+            state = .idle
+            return [.dismissOverlays]
+        case .hotkey(.toggleZoom, _, _):
+            state = .idle
+            return [.dismissOverlays]
+        default:
+            return []
+        }
+        state = .draw(ctx)
+        return [.render]
     }
 
     private mutating func handleType(_ event: SessionEvent, _ ctx: DrawContext, _ tool: TypeTool) -> [SessionEffect] {
-        return [] // Task 12
+        var ctx = ctx
+        var tool = tool
+
+        func commitRun() {
+            if let annotation = tool.finish(color: ctx.canvas.color) {
+                ctx.canvas.add(annotation)
+            }
+        }
+
+        switch event {
+        case .textInput(let s):
+            tool.insert(s)
+        case .deleteBackward:
+            tool.deleteBackward()
+        case .leftMouseDown(let point):
+            commitRun()
+            tool.beginText(at: point)
+        case .keyCommand(.fontIncrease):
+            tool.increaseFontSize()
+        case .keyCommand(.fontDecrease):
+            tool.decreaseFontSize()
+        case .escape:
+            commitRun()
+            state = .draw(ctx)
+            return [.render]
+        case .hotkey:
+            commitRun()
+            state = .idle
+            return [.dismissOverlays]
+        default:
+            return []
+        }
+        state = .type(ctx, tool)
+        return [.render]
     }
 }

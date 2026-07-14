@@ -5,7 +5,7 @@ A native macOS re-implementation of the Sysinternals [ZoomIt](https://learn.micr
 ## Features (v1)
 
 - **Zoom** (⌃1): freeze the screen and magnify 1×–8×. Mouse pans, scroll/pinch/↑↓ zooms. Left-click to annotate the zoomed image, right-click or Esc to exit.
-- **Draw** (⌃2): annotate the screen. Drag = pen; ⇧ line, ⌃⇧ arrow, ⌃ rectangle, Tab-held ellipse. Colors R/G/B/O/Y/P. ⌘Z or right-click undo, E erase, W/K white/blackboard, ⌘-scroll pen width, ⌘S save PNG, ⌘C copy.
+- **Draw** (⌃2): annotate the screen. Drag = pen; ⇧ line, ⌃⇧ arrow, ⌃ rectangle, Tab-held ellipse. Colors R/G/B/O/Y/P. ⌘Z or right-click undo, E erase, W/K white/blackboard, ⌘-scroll pen width, ⌘S save PNG, ⌘C copy (in plain draw mode the exported PNG has a transparent background).
 - **Type** (T while drawing): click to place the caret and type. ⌘+/⌘− font size, Esc done.
 - Hotkeys rebindable in Settings; launch-at-login optional.
 

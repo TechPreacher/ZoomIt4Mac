@@ -1,6 +1,15 @@
 import AppKit
 import ZoomItCore
 
+/// A borderless overlay window that can still become key/main, so keyboard
+/// input (Esc, colors, T, ⌘Z/⌘S/⌘C, arrows) and key-window-only mouse events
+/// (mouseMoved) actually reach it. Stock borderless NSWindow always returns
+/// false from canBecomeKey.
+private final class OverlayWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
 @MainActor
 final class OverlayWindowController {
     private let window: NSWindow
@@ -20,7 +29,7 @@ final class OverlayWindowController {
             screen: screen,
             coordinator: coordinator
         )
-        self.window = NSWindow(
+        self.window = OverlayWindow(
             contentRect: screen.frame,
             styleMask: .borderless,
             backing: .buffered,

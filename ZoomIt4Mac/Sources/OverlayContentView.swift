@@ -69,7 +69,7 @@ final class OverlayContentView: NSView {
             cg.draw(snapshot, in: CGRect(origin: .zero, size: screenFrame.size))
         }
 
-        drawAnnotations(in: cg) // no-op until Task 17
+        drawAnnotations(in: cg)
         cg.restoreGState()
     }
 

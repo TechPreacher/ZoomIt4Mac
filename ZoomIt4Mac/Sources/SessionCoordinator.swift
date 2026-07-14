@@ -40,13 +40,17 @@ final class SessionCoordinator {
     func send(_ event: SessionEvent) {
         let effects = machine.handle(event)
         for effect in effects { perform(effect) }
+        // If Tab was held while the mode changed away from .draw (T into
+        // type, Esc to zoom), keyUp may never route back here and tabHeld
+        // would otherwise stick, forcing the next drag into ellipse mode.
+        if case .draw = machine.state {} else { tabHeld = false }
     }
 
     func applySettings(_ settings: Settings) {
         send(.settingsChanged(settings))
     }
 
-    // MARK: - Input from overlay views (zoom mode; draw/type in Task 17)
+    // MARK: - Input from overlay views
 
     func handleKeyDown(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
@@ -119,16 +123,24 @@ final class SessionCoordinator {
             return
         }
         if let chars = event.characters, !chars.isEmpty,
-           !chars.unicodeScalars.allSatisfy({ CharacterSet.controlCharacters.contains($0) }) {
+           !chars.unicodeScalars.allSatisfy({
+               CharacterSet.controlCharacters.contains($0) || (0xF700...0xF8FF).contains($0.value)
+           }) {
             send(.textInput(chars))
         }
     }
 
     /// Map a global screen point into annotation (image) space for the
-    /// active draw context: identity for plain draw, screen→image when
-    /// drawing on a frozen zoom.
-    private func annotationPoint(for global: CGPoint) -> CGPoint {
-        guard case let .draw(ctx) = machine.state, let zoom = ctx.zoom else { return global }
+    /// active draw/type context: identity for plain draw or type, screen→image
+    /// when drawing/typing on a frozen zoom.
+    private func imageSpacePoint(for global: CGPoint) -> CGPoint {
+        let zoom: ZoomContext?
+        switch machine.state {
+        case .draw(let ctx): zoom = ctx.zoom
+        case .type(let ctx, _): zoom = ctx.zoom
+        default: zoom = nil
+        }
+        guard let zoom else { return global }
         let visible = ZoomGeometry.visibleRect(mouse: zoom.mouse, screen: zoom.screen, level: zoom.level)
         return ZoomGeometry.screenToImage(global, visibleRect: visible, screen: zoom.screen)
     }
@@ -147,11 +159,11 @@ final class SessionCoordinator {
         switch machine.state {
         case .zoom, .type:
             // zoom: enters draw; type: moves caret (both via the state machine)
-            send(.leftMouseDown(annotationPointForType(global)))
+            send(.leftMouseDown(imageSpacePoint(for: global)))
         case .draw(let ctx):
             activeTracker = ShapeTracker(
                 shape: shapeKind(for: modifiers),
-                start: annotationPoint(for: global),
+                start: imageSpacePoint(for: global),
                 color: ctx.canvas.color,
                 width: ctx.canvas.penWidth
             )
@@ -160,16 +172,9 @@ final class SessionCoordinator {
         }
     }
 
-    /// Type-mode caret uses the same image-space mapping as annotations.
-    private func annotationPointForType(_ global: CGPoint) -> CGPoint {
-        guard case let .type(ctx, _) = machine.state, let zoom = ctx.zoom else { return global }
-        let visible = ZoomGeometry.visibleRect(mouse: zoom.mouse, screen: zoom.screen, level: zoom.level)
-        return ZoomGeometry.screenToImage(global, visibleRect: visible, screen: zoom.screen)
-    }
-
     func handleMouseDragged(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
         guard activeTracker != nil else { return }
-        activeTracker?.update(annotationPoint(for: global))
+        activeTracker?.update(imageSpacePoint(for: global))
         renderAll()
     }
 
@@ -262,6 +267,11 @@ final class SessionCoordinator {
             let result = await snapshotter.captureAllDisplays()
             switch result {
             case .success(let images):
+                // The session may have already left .capturing (Esc, display
+                // change) by the time this async capture completes. Applying
+                // a stale snapshot would pollute the next session with a
+                // frozen screenshot instead of a transparent overlay.
+                guard case .capturing = machine.state else { return }
                 snapshots = images
                 send(.captureCompleted)
             case .failure(let failure):

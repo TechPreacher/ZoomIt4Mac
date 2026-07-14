@@ -67,7 +67,7 @@ Event flow is one-directional: hotkey / keyboard / mouse events → `SessionStat
 - Colors via keys: R red, G green, B blue, O orange, Y yellow, P pink.
 - Pen width: ⌘scroll adjusts.
 - Undo: ⌘Z (unlimited within session); right-click also undoes last annotation (ZoomIt parity). E erases all. W fills solid white background (whiteboard), K solid black (blackboard).
-- ⌘S saves the annotated screen as PNG via save panel; ⌘C copies it to the clipboard.
+- ⌘S saves the annotated screen as PNG via save panel; ⌘C copies it to the clipboard. In v1 the exported image is exactly what the overlay renders: annotations over the frozen zoom image (draw-on-zoom), over the white/black board, or over transparency in plain draw. Compositing annotations over the live desktop in plain draw is a deferred enhancement.
 - Esc: back to zoom if draw was entered from zoom, otherwise exits to idle.
 - Out of scope for v1: blur/highlighter tool (ZoomIt's X key).
 

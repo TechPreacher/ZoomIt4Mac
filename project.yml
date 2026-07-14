@@ -1,0 +1,51 @@
+name: ZoomIt4Mac
+options:
+  bundleIdPrefix: com.corti
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  ZoomItCore:
+    type: framework
+    platform: macOS
+    sources: [ZoomItCore/Sources]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  ZoomItCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [ZoomItCore/Tests]
+    dependencies:
+      - target: ZoomItCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  ZoomIt4Mac:
+    type: application
+    platform: macOS
+    sources: [ZoomIt4Mac/Sources]
+    dependencies:
+      - target: ZoomItCore
+        embed: true
+    info:
+      path: ZoomIt4Mac/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: ZoomIt4Mac
+        NSPrincipalClass: NSApplication
+    settings:
+      base:
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+schemes:
+  ZoomIt4Mac:
+    build:
+      targets:
+        ZoomIt4Mac: all
+    test:
+      targets: [ZoomItCoreTests]

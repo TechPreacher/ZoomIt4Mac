@@ -54,3 +54,49 @@ struct ZoomGeometryVisibleRectTests {
         }
     }
 }
+
+struct ZoomGeometryTransformTests {
+    let screen = CGRect(x: 0, y: 0, width: 1000, height: 800)
+
+    @Test func identityAtOneX() {
+        let visible = screen
+        let p = CGPoint(x: 123, y: 456)
+        let result = ZoomGeometry.screenToImage(p, visibleRect: visible, screen: screen)
+        #expect(abs(result.x - p.x) < 0.0001)
+        #expect(abs(result.y - p.y) < 0.0001)
+    }
+
+    @Test func screenCenterMapsToVisibleCenter() {
+        let visible = CGRect(x: 250, y: 200, width: 500, height: 400)
+        let p = ZoomGeometry.screenToImage(CGPoint(x: 500, y: 400), visibleRect: visible, screen: screen)
+        #expect(p == CGPoint(x: 500, y: 400))
+    }
+
+    @Test func screenCornersMapToVisibleCorners() {
+        let visible = CGRect(x: 100, y: 80, width: 250, height: 200)
+        let tl = ZoomGeometry.screenToImage(screen.origin, visibleRect: visible, screen: screen)
+        #expect(tl == visible.origin)
+        let br = ZoomGeometry.screenToImage(CGPoint(x: screen.maxX, y: screen.maxY), visibleRect: visible, screen: screen)
+        #expect(br == CGPoint(x: visible.maxX, y: visible.maxY))
+    }
+
+    @Test func roundTripWithinEpsilon() {
+        let visible = CGRect(x: 333, y: 111, width: 125, height: 100)
+        for p in [CGPoint(x: 0, y: 0), CGPoint(x: 999, y: 1), CGPoint(x: 500.5, y: 400.25)] {
+            let img = ZoomGeometry.screenToImage(p, visibleRect: visible, screen: screen)
+            let back = ZoomGeometry.imageToScreen(img, visibleRect: visible, screen: screen)
+            #expect(abs(back.x - p.x) < 0.0001)
+            #expect(abs(back.y - p.y) < 0.0001)
+        }
+    }
+
+    @Test func negativeOriginScreenRoundTrip() {
+        let s = CGRect(x: -1000, y: 100, width: 1000, height: 800)
+        let visible = ZoomGeometry.visibleRect(mouse: CGPoint(x: -500, y: 500), screen: s, level: 2)
+        let p = CGPoint(x: -250, y: 300)
+        let img = ZoomGeometry.screenToImage(p, visibleRect: visible, screen: s)
+        let back = ZoomGeometry.imageToScreen(img, visibleRect: visible, screen: s)
+        #expect(abs(back.x - p.x) < 0.0001)
+        #expect(abs(back.y - p.y) < 0.0001)
+    }
+}

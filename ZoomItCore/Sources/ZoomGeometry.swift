@@ -24,4 +24,22 @@ public enum ZoomGeometry {
             height: size.height
         )
     }
+
+    public static func screenToImage(_ point: CGPoint, visibleRect: CGRect, screen: CGRect) -> CGPoint {
+        let fx = screen.width > 0 ? (point.x - screen.minX) / screen.width : 0
+        let fy = screen.height > 0 ? (point.y - screen.minY) / screen.height : 0
+        return CGPoint(
+            x: visibleRect.minX + fx * visibleRect.width,
+            y: visibleRect.minY + fy * visibleRect.height
+        )
+    }
+
+    public static func imageToScreen(_ point: CGPoint, visibleRect: CGRect, screen: CGRect) -> CGPoint {
+        let fx = visibleRect.width > 0 ? (point.x - visibleRect.minX) / visibleRect.width : 0
+        let fy = visibleRect.height > 0 ? (point.y - visibleRect.minY) / visibleRect.height : 0
+        return CGPoint(
+            x: screen.minX + fx * screen.width,
+            y: screen.minY + fy * screen.height
+        )
+    }
 }

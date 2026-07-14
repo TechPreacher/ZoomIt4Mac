@@ -65,6 +65,10 @@ final class SettingsModel: ObservableObject {
         keyMonitor = nil
     }
 
+    func cancelRecording() {
+        stopRecording()
+    }
+
     func save() {
         store.save(settings)
         onApply(settings)
@@ -162,6 +166,7 @@ struct SettingsView: View {
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+    private var model: SettingsModel?
     private let store: SettingsStore
     private let onApply: (ZoomItCore.Settings) -> Void
 
@@ -172,7 +177,9 @@ final class SettingsWindowController {
 
     func show() {
         if window == nil {
-            let view = SettingsView(model: SettingsModel(store: store, onApply: onApply))
+            let model = SettingsModel(store: store, onApply: onApply)
+            self.model = model
+            let view = SettingsView(model: model)
             let w = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 420, height: 400),
                 styleMask: [.titled, .closable],
@@ -184,6 +191,15 @@ final class SettingsWindowController {
             w.isReleasedWhenClosed = false
             w.center()
             window = w
+
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: w, queue: .main
+            ) { [weak model] _ in
+                MainActor.assumeIsolated {
+                    model?.cancelRecording()
+                }
+            }
         }
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)

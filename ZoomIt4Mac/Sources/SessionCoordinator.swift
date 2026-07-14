@@ -234,7 +234,16 @@ final class SessionCoordinator {
             NSLog("screen capture failed")
         case .saveScreenshot:
             if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
+                // NSSavePanel.runModal() would appear behind our .screenSaver-level
+                // overlay windows, making the app look frozen. Hide them for the
+                // duration of the panel, then restore.
+                overlays.values.forEach { $0.close() }
                 ScreenshotComposer.save(image)
+                overlays.values.forEach { $0.show() }
+                let mouse = NSEvent.mouseLocation
+                let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
+                if let target { overlays[target.displayID]?.makeKey() }
+                renderAll()
             }
         case .copyScreenshot:
             if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {

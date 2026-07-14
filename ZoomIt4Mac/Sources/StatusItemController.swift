@@ -44,4 +44,11 @@ final class StatusItemController: NSObject {
     @objc private func zoomTapped() { onZoom() }
     @objc private func drawTapped() { onDraw() }
     @objc private func settingsTapped() { onSettings() }
+
+    func setWarning(_ on: Bool) {
+        statusItem.button?.image = NSImage(
+            systemSymbolName: on ? "exclamationmark.triangle" : "plus.magnifyingglass",
+            accessibilityDescription: on ? "ZoomIt4Mac — hotkey problem" : "ZoomIt4Mac"
+        )
+    }
 }

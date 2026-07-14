@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: SessionCoordinator?
     private var statusItemController: StatusItemController?
     private var hotkeyRegistrar: HotkeyRegistrar?
+    private var settingsWindowController: SettingsWindowController?
     private let settingsStore = SettingsStore(persistence: UserDefaults.standard)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -17,20 +18,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.coordinator = coordinator
 
+        let settingsWindow = SettingsWindowController(store: settingsStore) { [weak self] newSettings in
+            self?.coordinator?.applySettings(newSettings)
+            self?.applyHotkeys(newSettings)
+        }
+        settingsWindowController = settingsWindow
+
         statusItemController = StatusItemController(
             onZoom: { coordinator.trigger(.toggleZoom) },
             onDraw: { coordinator.trigger(.toggleDraw) },
-            onSettings: { NSLog("settings requested") } // Task 19 replaces
+            onSettings: { settingsWindow.show() }
         )
 
         let registrar = HotkeyRegistrar(onHotkey: { action in
             coordinator.trigger(action)
         })
-        let failed = registrar.apply(settings.hotkeys)
-        if !failed.isEmpty {
-            NSLog("hotkey registration failed for: \(failed.map(\.rawValue).joined(separator: ", "))")
-        }
         hotkeyRegistrar = registrar
+        applyHotkeys(settings)
 
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -39,6 +43,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 coordinator.send(.displayConfigurationChanged)
             }
+        }
+    }
+
+    private func applyHotkeys(_ settings: Settings) {
+        guard let registrar = hotkeyRegistrar else { return }
+        let failed = registrar.apply(settings.hotkeys)
+        statusItemController?.setWarning(!failed.isEmpty)
+        if !failed.isEmpty {
+            NSLog("hotkey registration failed for: \(failed.map(\.rawValue).joined(separator: ", "))")
         }
     }
 }

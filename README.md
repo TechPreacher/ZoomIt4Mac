@@ -38,7 +38,8 @@
 
   In plain draw mode the exported PNG has a transparent background.
 - **Type** (`T` while drawing) — click to place the caret and type on screen. `⌘+` / `⌘−` adjust font size, Esc finishes.
-- **Settings** — rebind both hotkeys (with conflict detection), default zoom level, pen defaults, launch at login.
+- **Break Timer** (`⌃3`) — full-screen countdown for presentation breaks. `Space` pauses, `↑` `↓` or scroll adjusts by a minute, Esc ends. Configurable duration (1–99 min), position, opacity, and background (solid black, faded desktop, or an image); optional sound and elapsed-time display on expiry.
+- **Settings** — rebind the hotkeys (with conflict detection), default zoom level, pen defaults, launch at login.
 
 Menu bar app (`LSUIElement`) — no Dock icon.
 

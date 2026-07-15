@@ -19,6 +19,7 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
         ShortcutSection(title: "Global", shortcuts: [
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleZoom)), action: "Zoom — freeze and magnify the screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleDraw)), action: "Draw — annotate on screen"),
+            Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleBreak)), action: "Break Timer — full-screen countdown"),
         ]),
         ShortcutSection(title: "While zooming", shortcuts: [
             Shortcut(keys: "Scroll / Pinch / ↑ ↓", action: "Change zoom level (1×–8×)"),
@@ -40,6 +41,11 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: "T", action: "Type text"),
             Shortcut(keys: "⌘S / ⌘C", action: "Save as PNG / copy to clipboard"),
             Shortcut(keys: "Esc", action: "Back to zoom, or exit"),
+        ]),
+        ShortcutSection(title: "During a break", shortcuts: [
+            Shortcut(keys: "Space", action: "Pause / resume"),
+            Shortcut(keys: "↑ ↓ / Scroll", action: "Add / remove one minute"),
+            Shortcut(keys: "Right click / Esc", action: "End the break"),
         ]),
         ShortcutSection(title: "While typing", shortcuts: [
             Shortcut(keys: "Click", action: "Place the caret"),

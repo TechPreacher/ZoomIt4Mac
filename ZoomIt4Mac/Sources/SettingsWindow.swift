@@ -1,6 +1,7 @@
 import AppKit
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 import ZoomItCore
 
 func comboLabel(_ combo: KeyCombo) -> String {
@@ -16,6 +17,30 @@ func comboLabel(_ combo: KeyCombo) -> String {
         32: "U", 9: "V", 13: "W", 7: "X", 16: "Y", 6: "Z", 49: "Space", 36: "Return",
     ]
     return s + (keyNames[combo.keyCode] ?? "key\(combo.keyCode)")
+}
+
+enum BackgroundKind: Hashable { case solid, desktop, image }
+
+func backgroundKind(_ background: BreakBackground) -> BackgroundKind {
+    switch background {
+    case .solidBlack: .solid
+    case .fadedDesktop: .desktop
+    case .imageFile: .image
+    }
+}
+
+func positionLabel(_ position: BreakPosition) -> String {
+    switch position {
+    case .topLeft: "Top left"
+    case .top: "Top"
+    case .topRight: "Top right"
+    case .left: "Left"
+    case .center: "Center"
+    case .right: "Right"
+    case .bottomLeft: "Bottom left"
+    case .bottom: "Bottom"
+    case .bottomRight: "Bottom right"
+    }
 }
 
 @MainActor
@@ -86,6 +111,26 @@ final class SettingsModel: ObservableObject {
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
+
+    func setBreakBackgroundKind(_ kind: BackgroundKind) {
+        switch kind {
+        case .solid: settings.breakTimer.background = .solidBlack
+        case .desktop: settings.breakTimer.background = .fadedDesktop
+        case .image: chooseBreakImage()
+        }
+        save()
+    }
+
+    func chooseBreakImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .heic]
+        panel.allowsMultipleSelection = false
+        NSApp.activate(ignoringOtherApps: true)
+        if panel.runModal() == .OK, let url = panel.url {
+            settings.breakTimer.background = .imageFile(url.path)
+            save()
+        }
+    }
 }
 
 struct SettingsView: View {
@@ -96,6 +141,7 @@ struct SettingsView: View {
             Section("Hotkeys") {
                 hotkeyRow("Zoom", action: .toggleZoom)
                 hotkeyRow("Draw", action: .toggleDraw)
+                hotkeyRow("Break Timer", action: .toggleBreak)
                 if !model.conflicts.isEmpty {
                     Text("Two actions share the same hotkey.")
                         .foregroundStyle(.red)
@@ -138,6 +184,68 @@ struct SettingsView: View {
                         .fixedSize()
                         .frame(width: 44, alignment: .trailing)
                 }
+            }
+            Section("Break Timer") {
+                LabeledContent("Duration") {
+                    Stepper(
+                        value: Binding(
+                            get: { model.settings.breakTimer.duration / 60 },
+                            set: { model.settings.breakTimer.duration = $0 * 60; model.save() }
+                        ),
+                        in: 1...99
+                    ) {
+                        Text("\(Int(model.settings.breakTimer.duration / 60)) min")
+                            .monospacedDigit()
+                            .fixedSize()
+                            .frame(width: 56, alignment: .trailing)
+                    }
+                }
+                Picker("Position", selection: Binding(
+                    get: { model.settings.breakTimer.position },
+                    set: { model.settings.breakTimer.position = $0; model.save() }
+                )) {
+                    ForEach(BreakPosition.allCases, id: \.self) { position in
+                        Text(positionLabel(position)).tag(position)
+                    }
+                }
+                LabeledContent("Opacity") {
+                    Slider(
+                        value: Binding(
+                            get: { model.settings.breakTimer.opacity },
+                            set: { model.settings.breakTimer.opacity = $0; model.save() }
+                        ),
+                        in: 0.1...1.0
+                    )
+                    Text("\(Int(model.settings.breakTimer.opacity * 100)) %")
+                        .monospacedDigit()
+                        .fixedSize()
+                        .frame(width: 44, alignment: .trailing)
+                }
+                Picker("Background", selection: Binding(
+                    get: { backgroundKind(model.settings.breakTimer.background) },
+                    set: { model.setBreakBackgroundKind($0) }
+                )) {
+                    Text("Solid black").tag(BackgroundKind.solid)
+                    Text("Faded desktop").tag(BackgroundKind.desktop)
+                    Text("Image…").tag(BackgroundKind.image)
+                }
+                if case .imageFile(let path) = model.settings.breakTimer.background {
+                    LabeledContent("Image") {
+                        Text((path as NSString).lastPathComponent)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Button("Choose…") { model.chooseBreakImage() }
+                    }
+                }
+                Toggle("Show elapsed time after expiry", isOn: Binding(
+                    get: { model.settings.breakTimer.showElapsedAfterExpiry },
+                    set: { model.settings.breakTimer.showElapsedAfterExpiry = $0; model.save() }
+                ))
+                Toggle("Play sound on expiry", isOn: Binding(
+                    get: { model.settings.breakTimer.playSound },
+                    set: { model.settings.breakTimer.playSound = $0; model.save() }
+                ))
             }
             Section {
                 Toggle("Launch at login", isOn: Binding(

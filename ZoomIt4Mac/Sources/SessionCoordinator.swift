@@ -19,8 +19,12 @@ final class SessionCoordinator {
     private var overlays: [CGDirectDisplayID: OverlayWindowController] = [:]
     private(set) var snapshots: [CGDirectDisplayID: CGImage] = [:]
     private var activeTracker: ShapeTracker?
+    private var breakTickTimer: Timer?
+    private var breakImage: CGImage?
 
     var currentState: SessionState { machine.state }
+
+    func currentSettings() -> Settings { machine.settings }
 
     init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator) {
         self.machine = SessionStateMachine(settings: settings)
@@ -31,6 +35,10 @@ final class SessionCoordinator {
     // MARK: - Event entry points
 
     func trigger(_ action: HotkeyAction) {
+        if action == .toggleBreak {
+            send(.breakRequested(now: CACurrentMediaTime()))
+            return
+        }
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screen(containing: mouse)?.frame
             ?? NSScreen.main?.frame ?? .zero
@@ -44,10 +52,25 @@ final class SessionCoordinator {
         // type, Esc to zoom), keyUp may never route back here and tabHeld
         // would otherwise stick, forcing the next drag into ellipse mode.
         if case .draw = machine.state {} else { tabHeld = false }
+        syncBreakTickTimer()
     }
 
     func applySettings(_ settings: Settings) {
         send(.settingsChanged(settings))
+    }
+
+    private func syncBreakTickTimer() {
+        let inBreak = if case .breakTimer = machine.state { true } else { false }
+        if inBreak && breakTickTimer == nil {
+            breakTickTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.send(.breakTick(now: CACurrentMediaTime()))
+                }
+            }
+        } else if !inBreak, let timer = breakTickTimer {
+            timer.invalidate()
+            breakTickTimer = nil
+        }
     }
 
     // MARK: - Input from overlay views
@@ -55,6 +78,16 @@ final class SessionCoordinator {
     func handleKeyDown(_ event: NSEvent) {
         if event.keyCode == 53 { // Esc
             send(.escape)
+            return
+        }
+
+        if case .breakTimer = machine.state {
+            switch event.keyCode {
+            case 49: send(.breakPauseResume(now: CACurrentMediaTime())) // Space
+            case 126: send(.breakAdjust(seconds: 60, now: CACurrentMediaTime()))  // ↑
+            case 125: send(.breakAdjust(seconds: -60, now: CACurrentMediaTime())) // ↓
+            default: break
+            }
             return
         }
 
@@ -199,6 +232,8 @@ final class SessionCoordinator {
             send(.zoomChanged(factor: deltaY > 0 ? 1.1 : 1 / 1.1))
         case .draw where modifiers.contains(.command):
             send(.penWidthChanged(delta: deltaY > 0 ? 1 : -1))
+        case .breakTimer:
+            send(.breakAdjust(seconds: deltaY > 0 ? 60 : -60, now: CACurrentMediaTime()))
         default:
             break
         }
@@ -254,12 +289,20 @@ final class SessionCoordinator {
             if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
                 ScreenshotComposer.copy(image)
             }
+        case .playExpirySound:
+            if let sound = NSSound(named: "Glass") {
+                sound.play()
+            } else {
+                NSSound.beep()
+            }
         }
     }
 
     private func captureScreens() {
         guard permissions.hasScreenRecordingPermission() else {
-            permissions.requestPermission()
+            if case .capturing(.zoom) = machine.state {
+                permissions.requestPermission()
+            }
             send(.captureFailed(.permissionDenied))
             return
         }
@@ -282,9 +325,17 @@ final class SessionCoordinator {
 
     private func showOverlays() {
         dismissOverlayWindows()
+        breakImage = nil
+        if case .breakTimer = machine.state,
+           case .imageFile(let path) = machine.settings.breakTimer.background,
+           let nsImage = NSImage(contentsOfFile: path),
+           let cg = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            breakImage = cg
+        }
         for screen in NSScreen.screens {
             let controller = OverlayWindowController(screen: screen, coordinator: self)
             controller.snapshot = snapshots[screen.displayID]
+            controller.breakImage = breakImage
             controller.show()
             overlays[screen.displayID] = controller
         }

@@ -4,10 +4,15 @@ public enum CanvasBackground: Equatable, Sendable {
     case transparent, white, black
 }
 
+public enum PenStyle: Equatable, Sendable {
+    case normal, highlighter, blur
+}
+
 public struct AnnotationCanvas: Equatable, Sendable {
     public private(set) var annotations: [Annotation] = []
     public var color: AnnotationColor
     public var background: CanvasBackground = .transparent
+    public var penStyle: PenStyle = .normal
 
     public var penWidth: CGFloat {
         didSet { penWidth = Self.clampWidth(penWidth) }

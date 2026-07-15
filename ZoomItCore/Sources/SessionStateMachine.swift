@@ -75,6 +75,7 @@ public enum KeyCommand: Equatable, Sendable {
     case undo, eraseAll, whiteboard, blackboard, enterType
     case save, copy
     case fontIncrease, fontDecrease
+    case toggleHighlighter, toggleBlur
 }
 
 public enum SessionEvent: Equatable, Sendable {
@@ -417,14 +418,23 @@ public struct SessionStateMachine: Sendable {
             ctx.canvas.add(annotation)
         case .keyCommand(.color(let color)):
             ctx.canvas.color = color
+            ctx.canvas.penStyle = .normal
         case .keyCommand(.undo), .rightMouseAction:
             ctx.canvas.undo()
         case .keyCommand(.eraseAll):
             ctx.canvas.eraseAll()
         case .keyCommand(.whiteboard):
             ctx.canvas.background = ctx.canvas.background == .white ? .transparent : .white
+            if ctx.canvas.penStyle == .blur { ctx.canvas.penStyle = .normal }
         case .keyCommand(.blackboard):
             ctx.canvas.background = ctx.canvas.background == .black ? .transparent : .black
+            if ctx.canvas.penStyle == .blur { ctx.canvas.penStyle = .normal }
+        case .keyCommand(.toggleHighlighter):
+            ctx.canvas.penStyle = ctx.canvas.penStyle == .highlighter ? .normal : .highlighter
+        case .keyCommand(.toggleBlur):
+            // Blur needs a frozen snapshot behind the ink — zoom-backed draw only.
+            guard ctx.zoom != nil else { return [.notifyCaptureFailure] }
+            ctx.canvas.penStyle = ctx.canvas.penStyle == .blur ? .normal : .blur
         case .penWidthChanged(let delta):
             ctx.canvas.penWidth += delta
         case .keyCommand(.enterType):

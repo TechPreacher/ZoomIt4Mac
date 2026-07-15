@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItemController = StatusItemController(
             onZoom: { coordinator.trigger(.toggleZoom) },
+            onLiveZoom: { coordinator.trigger(.toggleLiveZoom) },
             onDraw: { coordinator.trigger(.toggleDraw) },
             onBreak: { coordinator.trigger(.toggleBreak) },
             onShortcuts: { shortcutsWindow.show() },

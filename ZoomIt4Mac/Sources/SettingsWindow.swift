@@ -140,6 +140,7 @@ struct SettingsView: View {
         Form {
             Section("Hotkeys") {
                 hotkeyRow("Zoom", action: .toggleZoom)
+                hotkeyRow("Live Zoom", action: .toggleLiveZoom)
                 hotkeyRow("Draw", action: .toggleDraw)
                 hotkeyRow("Break Timer", action: .toggleBreak)
                 if !model.conflicts.isEmpty {

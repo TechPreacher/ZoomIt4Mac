@@ -21,6 +21,7 @@
 ## Features
 
 - **Zoom** (`⌃1`) — freezes the screen and smoothly zooms in on the mouse position. Move the mouse to pan (every screen edge reachable at any zoom level), scroll / pinch / `↑` `↓` to change magnification (1×–8×). Right-click, Esc, or `⌃1` exits.
+- **Live Zoom** (`⌃4`) — like Zoom, but the magnified screen keeps updating (video, demos). Same pan/zoom controls; left-click freezes the current frame for annotation, Esc returns to live. Active display only.
 - **Draw** (`⌃2`, or left-click while zoomed) — annotate the screen or the frozen zoomed image:
 
   | Input | Action |
@@ -45,7 +46,7 @@ Menu bar app (`LSUIElement`) — no Dock icon.
 
 ## Permissions
 
-Zoom requires **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required.
+Zoom and Live Zoom require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required.
 
 ## Building
 

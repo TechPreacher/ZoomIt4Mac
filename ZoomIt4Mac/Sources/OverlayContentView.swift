@@ -40,8 +40,13 @@ final class OverlayContentView: NSView {
         // Cursor rects only apply once the mouse moves; on snip entry the
         // mouse is stationary under the fresh overlay, so set the crosshair
         // explicitly or the arrow lingers until the first click/move.
+        // Deferred: the previous overlay's teardown restores the arrow on a
+        // later runloop turn, which would immediately undo a synchronous set.
         if case .snip = state, !wasSnip {
-            NSCursor.crosshair.set()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, case .snip = self.state, self.window != nil else { return }
+                NSCursor.crosshair.set()
+            }
         }
         if zoomBearing(state) && !wasZoomed && zoomContextForThisScreen != nil {
             startZoomEntryAnimation()
@@ -438,11 +443,40 @@ final class OverlayContentView: NSView {
         }
     }
 
+    private var wantsCrosshair: Bool {
+        switch state {
+        case .draw, .type, .snip: true
+        default: false
+        }
+    }
+
+    // AppKit sends cursorUpdate on window activation/ordering changes; the
+    // default implementation can restore the arrow AFTER our explicit set
+    // (observed on snip re-entry). Assert the mode cursor ourselves.
+    override func cursorUpdate(with event: NSEvent) {
+        if wantsCrosshair {
+            NSCursor.crosshair.set()
+        } else {
+            super.cursorUpdate(with: event)
+        }
+    }
+
+    /// The window server ignores cursor sets made outside event handling for
+    /// a freshly re-created overlay under a stationary pointer (it keeps the
+    /// underlying app's arrow until a click). A set() from within a genuine
+    /// mouse event delivered to this window is always honored — re-assert on
+    /// every movement so the crosshair recovers on the first pointer twitch.
+    private func assertModeCursor() {
+        if wantsCrosshair { NSCursor.crosshair.set() }
+    }
+
     override func mouseDown(with event: NSEvent) {
+        assertModeCursor()
         coordinator?.handleMouseDown(global: globalPoint(event), modifiers: event.modifierFlags)
     }
 
     override func mouseDragged(with event: NSEvent) {
+        assertModeCursor()
         coordinator?.handleMouseDragged(global: globalPoint(event), modifiers: event.modifierFlags)
     }
 
@@ -463,6 +497,7 @@ final class OverlayContentView: NSView {
     }
 
     override func mouseMoved(with event: NSEvent) {
+        assertModeCursor()
         coordinator?.handleMouseMoved(global: globalPoint(event))
     }
 }

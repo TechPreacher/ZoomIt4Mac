@@ -95,5 +95,8 @@ struct SnipGeometryTests {
         #expect(SnipGeometry.pixelCrop(selection: CGRect(x: CGFloat.nan, y: 0, width: 100, height: 100), displayFrame: display, scale: 1) == nil)
         // Sub-pixel sliver after clamping.
         #expect(SnipGeometry.pixelCrop(selection: CGRect(x: -99.8, y: 0, width: 100, height: 100), displayFrame: display, scale: 1) == nil)
+        // Non-finite display frame.
+        #expect(SnipGeometry.pixelCrop(selection: sel, displayFrame: CGRect(x: CGFloat.nan, y: 0, width: 1000, height: 500), scale: 1) == nil)
+        #expect(SnipGeometry.pixelCrop(selection: sel, displayFrame: CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 500), scale: 1) == nil)
     }
 }

@@ -53,7 +53,7 @@ Event flow is one-directional: hotkey / keyboard / mouse events → `SessionStat
 
 ### Zoom (⌃1)
 
-- Trigger → freeze: one snapshot per display; overlay windows appear showing the snapshot directly at the default zoom level (2×, configurable), centered on the mouse. (An animated 1×→default zoom-in transition is post-v1 polish.)
+- Trigger → freeze: one snapshot per display; overlay windows appear and smoothly animate from 1× to the default zoom level (2×, configurable) over ~250 ms with ease-out, centered on the mouse (ZoomIt-style smooth zoom).
 - Zoom control: scroll wheel, trackpad pinch, or ↑/↓ arrows. Range 1×–8×, smooth stepping.
 - Pan: mouse movement pans via the ZoomIt mouse-follow mapping (all screen edges reachable at every zoom level).
 - Left-click enters draw mode on the frozen zoomed image. Right-click or Esc exits zoom and dismisses overlays. ⌃1 again also exits.

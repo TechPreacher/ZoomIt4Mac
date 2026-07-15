@@ -45,7 +45,9 @@ final class OverlayWindowController {
         window.backgroundColor = .clear
         window.hasShadow = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.sharingType = .none // never capture our own overlay
+        // .readOnly (not .none): recordings must capture our zoom/draw overlays.
+        // Live Zoom's stream avoids feedback via its explicit window exclusion.
+        window.sharingType = .readOnly
         window.acceptsMouseMovedEvents = true
         // Explicitly setting this (even to its default) disables AppKit's
         // per-pixel transparency hit-testing, which would otherwise pass

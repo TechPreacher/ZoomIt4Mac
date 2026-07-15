@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import ZoomItCore
 
 extension NSScreen {
@@ -17,21 +18,32 @@ final class SessionCoordinator {
     private let snapshotter: Snapshotting
     private let permissions: PermissionCoordinator
     private let liveStream: LiveStreaming
+    private let recorder: ScreenRecording
     private var overlays: [CGDirectDisplayID: OverlayWindowController] = [:]
     private(set) var snapshots: [CGDirectDisplayID: CGImage] = [:]
     private var activeTracker: ShapeTracker?
     private var breakTickTimer: Timer?
+    private let recordingNotice = RecordingNoticeController()
+    private var recordingNoticeTimer: Timer?
     private var breakImage: CGImage?
+
+    var onRecordingStateChange: ((Bool) -> Void)?
+    private var lastReportedRecording = false
+    /// A finished recording's URL waiting to be revealed in Finder once the
+    /// session returns to .idle — activating Finder while a mode (draw/type/
+    /// break/zoom) is active would steal keyboard focus from the overlay.
+    private var pendingRevealURL: URL?
 
     var currentState: SessionState { machine.state }
 
     func currentSettings() -> Settings { machine.settings }
 
-    init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator, liveStream: LiveStreaming) {
+    init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator, liveStream: LiveStreaming, recorder: ScreenRecording) {
         self.machine = SessionStateMachine(settings: settings)
         self.snapshotter = snapshotter
         self.permissions = permissions
         self.liveStream = liveStream
+        self.recorder = recorder
     }
 
     // MARK: - Event entry points
@@ -55,6 +67,14 @@ final class SessionCoordinator {
         // would otherwise stick, forcing the next drag into ellipse mode.
         if case .draw = machine.state {} else { tabHeld = false }
         syncBreakTickTimer()
+        if machine.isRecording != lastReportedRecording {
+            lastReportedRecording = machine.isRecording
+            onRecordingStateChange?(machine.isRecording)
+        }
+        if let url = pendingRevealURL, machine.state == .idle {
+            pendingRevealURL = nil
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
     }
 
     func applySettings(_ settings: Settings) {
@@ -279,22 +299,9 @@ final class SessionCoordinator {
             NSSound.beep()
             NSLog("screen capture failed")
         case .saveScreenshot:
-            if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
-                // NSSavePanel.runModal() would appear behind our .screenSaver-level
-                // overlay windows, making the app look frozen. Hide them for the
-                // duration of the panel, then restore.
-                overlays.values.forEach { $0.close() }
-                ScreenshotComposer.save(image)
-                overlays.values.forEach { $0.show() }
-                let mouse = NSEvent.mouseLocation
-                let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
-                if let target { overlays[target.displayID]?.makeKey() }
-                renderAll()
-            }
+            exportScreenshot(toClipboard: false)
         case .copyScreenshot:
-            if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
-                ScreenshotComposer.copy(image)
-            }
+            exportScreenshot(toClipboard: true)
         case .playExpirySound:
             if let sound = NSSound(named: "Glass") {
                 sound.play()
@@ -307,7 +314,108 @@ final class SessionCoordinator {
             liveStream.stop()
         case .freezeLiveFrame:
             freezeLiveFrame()
+        case .startRecording:
+            startRecording()
+        case .stopRecording:
+            recorder.stop { [weak self] url in
+                guard let self, let url else { return }
+                // Reveal now if idle, else defer until the session settles
+                // (see pendingRevealURL) so Finder activation doesn't steal
+                // keyboard focus from an active overlay mode.
+                if self.machine.state == .idle {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } else {
+                    self.pendingRevealURL = url
+                }
+            }
+        case .showRecordingNotice:
+            showRecordingNotice()
+        case .dismissRecordingNotice:
+            dismissRecordingNotice()
         }
+    }
+
+    private func showRecordingNotice() {
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screen(containing: mouse) ?? NSScreen.main else {
+            send(.recordingNoticeElapsed) // headless edge: skip straight to capture
+            return
+        }
+        let combo = comboLabel(machine.settings.hotkeys.combo(for: .toggleRecord))
+        recordingNotice.show(on: screen, stopComboLabel: combo)
+        recordingNoticeTimer?.invalidate()
+        recordingNoticeTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.send(.recordingNoticeElapsed)
+            }
+        }
+    }
+
+    private func dismissRecordingNotice() {
+        recordingNoticeTimer?.invalidate()
+        recordingNoticeTimer = nil
+        recordingNotice.dismiss()
+    }
+
+    private func startRecording() {
+        guard permissions.hasScreenRecordingPermission() else {
+            // Defer so the current effect batch finishes before the machine
+            // unwinds; the system prompt is never hidden behind overlays.
+            Task { @MainActor in
+                self.permissions.requestPermission()
+                self.send(.recordingFailed)
+            }
+            return
+        }
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screen(containing: mouse) ?? NSScreen.main else {
+            send(.recordingFailed)
+            return
+        }
+        let recording = machine.settings.recording
+        let displayID = screen.displayID
+
+        // Screen-Recording preflight above already handles its own system
+        // prompt via requestPermission(); this preflight is a *second*,
+        // independent one for the mic authorization the recorder would
+        // otherwise trigger from a background queue. Resolving it here first
+        // lets us hide overlays for the prompt's duration. Accepted
+        // limitation: if the mic prompt still manages to appear from within
+        // an active mode in some edge case, it can sit behind the
+        // .screenSaver-level overlay — the guidance alert (Esc, then
+        // re-grant) covers recovery.
+        guard recording.recordMicrophone,
+              AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined,
+              !overlays.isEmpty
+        else {
+            beginRecording(displayID: displayID, recording: recording)
+            return
+        }
+
+        overlays.values.forEach { $0.close() }
+        Task { @MainActor in
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+            self.overlays.values.forEach { $0.show() }
+            let mouse = NSEvent.mouseLocation
+            let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
+            if let target { self.overlays[target.displayID]?.makeKey() }
+            self.renderAll()
+            // The user may have toggled recording off (⌃5) while the
+            // permission prompt was up — machine.isRecording is the truth.
+            guard self.machine.isRecording else { return }
+            self.beginRecording(displayID: displayID, recording: recording)
+        }
+    }
+
+    private func beginRecording(displayID: CGDirectDisplayID, recording: RecordingConfiguration) {
+        recorder.start(
+            displayID: displayID,
+            microphone: recording.recordMicrophone,
+            systemAudio: recording.recordSystemAudio,
+            onError: { [weak self] _ in
+                self?.send(.recordingFailed)
+            }
+        )
     }
 
     private func startLiveStream() {
@@ -422,20 +530,68 @@ final class SessionCoordinator {
         }
     }
 
-    /// The overlay for the screen being annotated: the zoom screen when
-    /// drawing on a frozen zoom, else the screen under the mouse.
-    private func activeOverlayView() -> NSView? {
+    /// The screen being annotated: the zoom screen when drawing on a frozen
+    /// zoom, else the screen under the mouse.
+    private func activeAnnotationScreen() -> NSScreen? {
         let zoomScreenFrame: CGRect? = switch machine.state {
         case .draw(let ctx): ctx.zoom?.screen
         case .type(let ctx, _): ctx.zoom?.screen
         default: nil
         }
-        let screen: NSScreen? = if let zoomScreenFrame {
-            NSScreen.screens.first { $0.frame == zoomScreenFrame }
-        } else {
-            NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main
+        if let zoomScreenFrame {
+            return NSScreen.screens.first { $0.frame == zoomScreenFrame }
         }
-        guard let screen else { return nil }
+        return NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main
+    }
+
+    private func activeOverlayView() -> NSView? {
+        guard let screen = activeAnnotationScreen() else { return nil }
         return overlays[screen.displayID]?.compositingView
+    }
+
+    /// ⌘S/⌘C: capture the display as the user sees it (desktop or frozen
+    /// zoom or board, WITH annotations — overlays are sharingType .readOnly).
+    /// Falls back to compositing just the overlay view when screen capture
+    /// is unavailable (no Screen Recording permission).
+    private func exportScreenshot(toClipboard: Bool) {
+        guard let screen = activeAnnotationScreen() else { return }
+        let displayID = screen.displayID
+        let screenSize = screen.frame.size
+
+        if permissions.hasScreenRecordingPermission() {
+            Task { @MainActor in
+                let result = await self.snapshotter.captureDisplay(displayID)
+                let image: NSImage? = switch result {
+                case .success(let cg): NSImage(cgImage: cg, size: screenSize)
+                case .failure: self.overlayFallbackImage()
+                }
+                guard let image else { return }
+                self.deliverScreenshot(image, toClipboard: toClipboard)
+            }
+        } else if let image = overlayFallbackImage() {
+            deliverScreenshot(image, toClipboard: toClipboard)
+        }
+    }
+
+    private func overlayFallbackImage() -> NSImage? {
+        guard let view = activeOverlayView() else { return nil }
+        return ScreenshotComposer.image(of: view)
+    }
+
+    private func deliverScreenshot(_ image: NSImage, toClipboard: Bool) {
+        if toClipboard {
+            ScreenshotComposer.copy(image)
+            return
+        }
+        // NSSavePanel.runModal() would appear behind our .screenSaver-level
+        // overlay windows, making the app look frozen. Hide them for the
+        // duration of the panel, then restore.
+        overlays.values.forEach { $0.close() }
+        ScreenshotComposer.save(image)
+        overlays.values.forEach { $0.show() }
+        let mouse = NSEvent.mouseLocation
+        let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
+        if let target { overlays[target.displayID]?.makeKey() }
+        renderAll()
     }
 }

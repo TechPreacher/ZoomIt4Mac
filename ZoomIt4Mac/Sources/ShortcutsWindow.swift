@@ -21,6 +21,7 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleLiveZoom)), action: "Live Zoom — magnify the live screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleDraw)), action: "Draw — annotate on screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleBreak)), action: "Break Timer — full-screen countdown"),
+            Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleRecord)), action: "Recording — start/stop recording the screen"),
         ]),
         ShortcutSection(title: "While zooming", shortcuts: [
             Shortcut(keys: "Scroll / Pinch / ↑ ↓", action: "Change zoom level (1×–8×)"),

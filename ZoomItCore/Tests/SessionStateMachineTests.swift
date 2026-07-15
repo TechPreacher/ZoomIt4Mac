@@ -681,3 +681,138 @@ struct SessionLiveZoomFreezeTests {
         #expect(m.state == .idle)
     }
 }
+
+/// Toggle ⌃5 and let the notice elapse so capture is actually running.
+func recordingMachine(_ base: SessionStateMachine = machine()) -> SessionStateMachine {
+    var m = base
+    m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+    m.handle(.recordingNoticeElapsed)
+    return m
+}
+
+struct SessionRecordingTests {
+    @Test func toggleShowsNoticeThenElapsedStarts() {
+        var m = machine()
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.showRecordingNotice])
+        #expect(m.recordingPhase == .pending)
+        #expect(!m.isRecording) // capture not running during the notice
+        #expect(m.state == .idle) // no mode entered
+        #expect(m.handle(.recordingNoticeElapsed) == [.dismissRecordingNotice, .startRecording])
+        #expect(m.isRecording)
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.stopRecording])
+        #expect(m.recordingPhase == .off)
+    }
+
+    @Test func secondToggleDuringNoticeCancels() {
+        var m = machine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.dismissRecordingNotice])
+        #expect(m.recordingPhase == .off)
+        // A late timer tick after cancellation must not start anything.
+        #expect(m.handle(.recordingNoticeElapsed).isEmpty)
+        #expect(!m.isRecording)
+    }
+
+    @Test func noticeElapsedIgnoredWhenNotPending() {
+        var m = machine()
+        #expect(m.handle(.recordingNoticeElapsed).isEmpty)
+        var active = recordingMachine()
+        #expect(active.handle(.recordingNoticeElapsed).isEmpty) // already active
+    }
+
+    @Test func toggleDoesNotDisturbActiveModes() {
+        var zoom = zoomedMachine()
+        #expect(zoom.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.showRecordingNotice])
+        guard case .zoom = zoom.state else { Issue.record("zoom must survive"); return }
+
+        var draw = drawingMachine()
+        draw.handle(.annotationAdded(.line(from: .zero, to: CGPoint(x: 5, y: 5), color: .red, width: 4)))
+        draw = recordingMachine(draw)
+        #expect(draw.isRecording)
+        #expect(draw.drawContext?.canvas.annotations.count == 1) // context preserved
+
+        var brk = recordingMachine(breakMachine())
+        #expect(brk.isRecording)
+        guard case .breakTimer = brk.state else { Issue.record("break must survive"); return }
+
+        var live = recordingMachine(liveZoomMachine())
+        #expect(live.isRecording)
+        guard case .liveZoom = live.state else { Issue.record("live zoom must survive"); return }
+    }
+
+    @Test func modeChangesLeaveRecordingOn() {
+        var m = recordingMachine()
+        m.handle(.hotkey(.toggleDraw, mouse: testMouse, screen: testScreen)) // enter draw
+        #expect(m.isRecording)
+        m.handle(.escape) // exit draw
+        #expect(m.isRecording)
+        #expect(m.state == .idle)
+        m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen))
+        m.handle(.captureCompleted) // enter zoom
+        #expect(m.isRecording)
+        m.handle(.escape)
+        #expect(m.isRecording)
+    }
+
+    @Test func recordingFailedClearsOnlyWhenActive() {
+        var m = machine()
+        #expect(m.handle(.recordingFailed).isEmpty)
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.recordingFailed).isEmpty) // pending: nothing to fail yet
+        m.handle(.recordingNoticeElapsed)
+        #expect(m.handle(.recordingFailed) == [.notifyCaptureFailure])
+        #expect(!m.isRecording)
+        #expect(m.handle(.recordingFailed).isEmpty) // idempotent
+    }
+
+    @Test func displayChangeStopsRecordingAndExitsMode() {
+        var m = recordingMachine(zoomedMachine())
+        let fx = m.handle(.displayConfigurationChanged)
+        #expect(fx == [.stopRecording, .dismissOverlays])
+        #expect(!m.isRecording)
+        #expect(m.state == .idle)
+    }
+
+    @Test func displayChangeDuringNoticeCancelsIt() {
+        var m = machine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.displayConfigurationChanged) == [.dismissRecordingNotice])
+        #expect(m.recordingPhase == .off)
+    }
+
+    @Test func displayChangeInIdleWhileRecordingJustStops() {
+        var m = recordingMachine()
+        #expect(m.handle(.displayConfigurationChanged) == [.stopRecording])
+        #expect(!m.isRecording)
+    }
+
+    @Test func displayChangeDuringLiveZoomWhileRecordingOrdersEffects() {
+        var m = recordingMachine(liveZoomMachine())
+        #expect(m.handle(.displayConfigurationChanged) == [.stopRecording, .stopLiveStream, .dismissOverlays])
+    }
+
+    @Test func recordHotkeyDoesNotCommitOrExitType() {
+        var m = drawingMachine()
+        m.handle(.keyCommand(.enterType))
+        m.handle(.leftMouseDown(.zero))
+        m.handle(.textInput("hi"))
+        m = recordingMachine(m)
+        #expect(m.isRecording)
+        guard case .type = m.state else { Issue.record("type must survive"); return }
+    }
+
+    @Test func toggleDuringCaptureLeavesCaptureIntact() {
+        var m = machine()
+        m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen)) // .capturing
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.showRecordingNotice])
+        m.handle(.recordingNoticeElapsed)
+        #expect(m.isRecording)
+        guard case .capturing = m.state else { Issue.record("capturing must survive"); return }
+    }
+
+    @Test func settingsChangedPreservesRecording() {
+        var m = recordingMachine()
+        m.handle(.settingsChanged(Settings.default))
+        #expect(m.isRecording)
+    }
+}

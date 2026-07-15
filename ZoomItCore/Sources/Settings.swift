@@ -7,6 +7,7 @@ public struct Settings: Codable, Equatable, Sendable {
     public var penColor: AnnotationColor
     public var penWidth: CGFloat
     public var breakTimer: BreakConfiguration
+    public var recording: RecordingConfiguration
 
     enum CodingKeys: String, CodingKey {
         case hotkeys
@@ -14,6 +15,7 @@ public struct Settings: Codable, Equatable, Sendable {
         case penColor
         case penWidth
         case breakTimer
+        case recording
     }
 
     public static let `default` = Settings(
@@ -21,7 +23,8 @@ public struct Settings: Codable, Equatable, Sendable {
         defaultZoomLevel: 2.0,
         penColor: .red,
         penWidth: 4,
-        breakTimer: .default
+        breakTimer: .default,
+        recording: .default
     )
 
     public init(
@@ -29,16 +32,18 @@ public struct Settings: Codable, Equatable, Sendable {
         defaultZoomLevel: CGFloat,
         penColor: AnnotationColor,
         penWidth: CGFloat,
-        breakTimer: BreakConfiguration
+        breakTimer: BreakConfiguration,
+        recording: RecordingConfiguration
     ) {
         self.hotkeys = hotkeys
         self.defaultZoomLevel = defaultZoomLevel
         self.penColor = penColor
         self.penWidth = penWidth
         self.breakTimer = breakTimer
+        self.recording = recording
     }
 
-    // Migration: v1 persisted JSON has no breakTimer key.
+    // Migration: v1 persisted JSON has no breakTimer key; v2 has no recording key.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         hotkeys = try container.decode(HotkeyConfiguration.self, forKey: .hotkeys)
@@ -46,6 +51,7 @@ public struct Settings: Codable, Equatable, Sendable {
         penColor = try container.decode(AnnotationColor.self, forKey: .penColor)
         penWidth = try container.decode(CGFloat.self, forKey: .penWidth)
         breakTimer = try container.decodeIfPresent(BreakConfiguration.self, forKey: .breakTimer) ?? .default
+        recording = try container.decodeIfPresent(RecordingConfiguration.self, forKey: .recording) ?? .default
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -55,6 +61,7 @@ public struct Settings: Codable, Equatable, Sendable {
         try container.encode(penColor, forKey: .penColor)
         try container.encode(penWidth, forKey: .penWidth)
         try container.encode(breakTimer, forKey: .breakTimer)
+        try container.encode(recording, forKey: .recording)
     }
 
     public func sanitized() -> Settings {

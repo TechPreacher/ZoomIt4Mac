@@ -37,16 +37,17 @@
   | `⌘S` / `⌘C` | save PNG / copy to clipboard |
   | `Esc` | back to zoom, or exit |
 
-  In plain draw mode the exported PNG has a transparent background.
+  Exports capture the screen as you see it — desktop (or frozen zoom, or board) with your annotations on top.
 - **Type** (`T` while drawing) — click to place the caret and type on screen. `⌘+` / `⌘−` adjust font size, Esc finishes.
 - **Break Timer** (`⌃3`) — full-screen countdown for presentation breaks. `Space` pauses, `↑` `↓` or scroll adjusts by a minute, Esc ends. Configurable duration (1–99 min), position, opacity, and background (solid black, faded desktop, or an image); optional sound and elapsed-time display on expiry.
+- **Screen Recording** (`⌃5`) — records the active display to `~/Movies/ZoomIt4Mac/` (H.264 .mp4, revealed in Finder when done). A brief on-screen notice announces the start (press `⌃5` again during it to cancel); capture begins after it disappears, so the notice is never in your video. Your zoom and draw annotations are part of the recording. Optional microphone and system-audio capture (Settings → Recording); works while any other mode is active.
 - **Settings** — rebind the hotkeys (with conflict detection), default zoom level, pen defaults, launch at login.
 
 Menu bar app (`LSUIElement`) — no Dock icon.
 
 ## Permissions
 
-Zoom and Live Zoom require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required.
+Zoom and Live Zoom require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required. Recording with the microphone enabled additionally asks for **Microphone** permission (optional — recordings proceed without it if denied).
 
 ## Building
 

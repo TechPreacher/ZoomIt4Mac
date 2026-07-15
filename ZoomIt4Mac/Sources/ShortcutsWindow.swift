@@ -18,6 +18,7 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
     [
         ShortcutSection(title: "Global", shortcuts: [
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleZoom)), action: "Zoom — freeze and magnify the screen"),
+            Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleLiveZoom)), action: "Live Zoom — magnify the live screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleDraw)), action: "Draw — annotate on screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleBreak)), action: "Break Timer — full-screen countdown"),
         ]),
@@ -26,6 +27,12 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: "Move mouse", action: "Pan"),
             Shortcut(keys: "Left click", action: "Draw on the zoomed image"),
             Shortcut(keys: "Right click / Esc", action: "Exit zoom"),
+        ]),
+        ShortcutSection(title: "While live zooming", shortcuts: [
+            Shortcut(keys: "Scroll / Pinch / ↑ ↓", action: "Change zoom level (1×–8×)"),
+            Shortcut(keys: "Move mouse", action: "Pan"),
+            Shortcut(keys: "Left click", action: "Freeze the frame and draw on it (Esc returns to live)"),
+            Shortcut(keys: "Right click / Esc", action: "Exit live zoom"),
         ]),
         ShortcutSection(title: "While drawing", shortcuts: [
             Shortcut(keys: "Drag", action: "Freehand pen"),

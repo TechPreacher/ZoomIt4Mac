@@ -23,7 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let coordinator = SessionCoordinator(
             settings: settings,
             snapshotter: ScreenSnapshotter(),
-            permissions: PermissionCoordinator()
+            permissions: PermissionCoordinator(),
+            liveStream: LiveStreamController()
         )
         self.coordinator = coordinator
 
@@ -38,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusItemController = StatusItemController(
             onZoom: { coordinator.trigger(.toggleZoom) },
+            onLiveZoom: { coordinator.trigger(.toggleLiveZoom) },
             onDraw: { coordinator.trigger(.toggleDraw) },
             onBreak: { coordinator.trigger(.toggleBreak) },
             onShortcuts: { shortcutsWindow.show() },

@@ -16,10 +16,12 @@ public struct ZoomContext: Equatable, Sendable {
 public struct DrawContext: Equatable, Sendable {
     public var canvas: AnnotationCanvas
     public var zoom: ZoomContext?
+    public var fromLiveZoom: Bool
 
-    public init(canvas: AnnotationCanvas, zoom: ZoomContext?) {
+    public init(canvas: AnnotationCanvas, zoom: ZoomContext?, fromLiveZoom: Bool = false) {
         self.canvas = canvas
         self.zoom = zoom
+        self.fromLiveZoom = fromLiveZoom
     }
 }
 
@@ -48,6 +50,7 @@ public enum SessionState: Equatable, Sendable {
     case idle
     case capturing(CaptureTarget)
     case zoom(ZoomContext)
+    case liveZoom(ZoomContext)
     case draw(DrawContext)
     case type(DrawContext, TypeTool)
     case breakTimer(BreakContext)
@@ -80,6 +83,8 @@ public enum SessionEvent: Equatable, Sendable {
     case breakTick(now: TimeInterval)
     case breakPauseResume(now: TimeInterval)
     case breakAdjust(seconds: TimeInterval, now: TimeInterval)
+    case liveFrameFrozen
+    case liveStreamFailed(CaptureFailure)
 }
 
 public enum SessionEffect: Equatable, Sendable {
@@ -92,6 +97,9 @@ public enum SessionEffect: Equatable, Sendable {
     case saveScreenshot
     case copyScreenshot
     case playExpirySound
+    case startLiveStream
+    case stopLiveStream
+    case freezeLiveFrame
 }
 
 public struct SessionStateMachine: Sendable {
@@ -110,8 +118,9 @@ public struct SessionStateMachine: Sendable {
             return []
         case .displayConfigurationChanged:
             if case .idle = state { return [] }
+            let wasLive = if case .liveZoom = state { true } else { false }
             state = .idle
-            return [.dismissOverlays]
+            return wasLive ? [.stopLiveStream, .dismissOverlays] : [.dismissOverlays]
         default:
             break
         }
@@ -122,6 +131,8 @@ public struct SessionStateMachine: Sendable {
             return handleCapturing(event, target: target)
         case .zoom(let ctx):
             return handleZoom(event, ctx)
+        case .liveZoom(let ctx):
+            return handleLiveZoom(event, ctx)
         case .draw(let ctx):
             return handleDraw(event, ctx)
         case .type(let ctx, let tool):
@@ -143,6 +154,9 @@ public struct SessionStateMachine: Sendable {
         case .hotkey(.toggleDraw, _, _):
             state = .draw(DrawContext(canvas: newCanvas(), zoom: nil))
             return [.showOverlays, .render]
+        case .hotkey(.toggleLiveZoom, let mouse, let screen):
+            state = .liveZoom(ZoomContext(level: settings.defaultZoomLevel, mouse: mouse, screen: screen))
+            return [.showOverlays, .startLiveStream, .render]
         case .breakRequested(let now):
             if case .fadedDesktop = settings.breakTimer.background {
                 state = .capturing(.breakTimer(now: now))
@@ -241,6 +255,42 @@ public struct SessionStateMachine: Sendable {
         case .leftMouseDown, .hotkey(.toggleDraw, _, _):
             state = .draw(DrawContext(canvas: newCanvas(), zoom: ctx))
             return [.render]
+        case .hotkey:
+            state = .idle
+            return [.dismissOverlays]
+        default:
+            return []
+        }
+    }
+
+    private mutating func handleLiveZoom(_ event: SessionEvent, _ ctx: ZoomContext) -> [SessionEffect] {
+        var ctx = ctx
+        switch event {
+        case .escape, .rightMouseAction, .breakRequested:
+            state = .idle
+            return [.stopLiveStream, .dismissOverlays]
+        case .zoomChanged(let factor):
+            ctx.level = ZoomGeometry.clamp(ctx.level * factor)
+            state = .liveZoom(ctx)
+            return [.render]
+        case .mouseMoved(let point):
+            ctx.mouse = point
+            state = .liveZoom(ctx)
+            return [.render]
+        case .hotkey(.toggleDraw, _, _), .leftMouseDown:
+            return [.freezeLiveFrame]
+        case .liveFrameFrozen:
+            state = .draw(DrawContext(canvas: newCanvas(), zoom: ctx, fromLiveZoom: true))
+            return [.stopLiveStream, .render]
+        case .hotkey:
+            state = .idle
+            return [.stopLiveStream, .dismissOverlays]
+        case .liveStreamFailed(.permissionDenied):
+            state = .idle
+            return [.stopLiveStream, .dismissOverlays, .showPermissionGuidance]
+        case .liveStreamFailed(.captureError):
+            state = .idle
+            return [.stopLiveStream, .dismissOverlays, .notifyCaptureFailure]
         default:
             return []
         }
@@ -272,12 +322,16 @@ public struct SessionStateMachine: Sendable {
             return [.copyScreenshot]
         case .escape, .hotkey(.toggleDraw, _, _):
             if let zoom = ctx.zoom {
+                if ctx.fromLiveZoom {
+                    state = .liveZoom(zoom)
+                    return [.startLiveStream, .render]
+                }
                 state = .zoom(zoom)
                 return [.render]
             }
             state = .idle
             return [.dismissOverlays]
-        case .hotkey(.toggleZoom, _, _), .breakRequested:
+        case .hotkey(.toggleZoom, _, _), .hotkey(.toggleLiveZoom, _, _), .breakRequested:
             state = .idle
             return [.dismissOverlays]
         default:

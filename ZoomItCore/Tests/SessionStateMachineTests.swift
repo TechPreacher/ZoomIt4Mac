@@ -627,3 +627,57 @@ struct SessionLiveZoomTests {
         #expect(b.state == .idle)
     }
 }
+
+struct SessionLiveZoomFreezeTests {
+    @Test func clickRequestsFreezeWithoutStateChange() {
+        var m = liveZoomMachine()
+        let fx = m.handle(.leftMouseDown(.zero))
+        #expect(fx == [.freezeLiveFrame])
+        guard case .liveZoom = m.state else { Issue.record("state must not change yet"); return }
+    }
+
+    @Test func drawHotkeyAlsoRequestsFreeze() {
+        var m = liveZoomMachine()
+        #expect(m.handle(.hotkey(.toggleDraw, mouse: testMouse, screen: testScreen)) == [.freezeLiveFrame])
+    }
+
+    @Test func frozenFrameEntersDrawFromLive() {
+        var m = liveZoomMachine()
+        m.handle(.zoomChanged(factor: 2)) // 4.0
+        m.handle(.leftMouseDown(.zero))
+        let fx = m.handle(.liveFrameFrozen)
+        #expect(fx == [.stopLiveStream, .render])
+        guard case .draw(let ctx) = m.state else { Issue.record("expected draw"); return }
+        #expect(ctx.fromLiveZoom)
+        #expect(ctx.zoom?.level == 4.0)
+        #expect(ctx.canvas.color == Settings.default.penColor)
+    }
+
+    @Test func escFromLiveDrawReturnsToLiveZoom() {
+        var m = liveZoomMachine()
+        m.handle(.leftMouseDown(.zero))
+        m.handle(.liveFrameFrozen)
+        let fx = m.handle(.escape)
+        #expect(fx == [.startLiveStream, .render])
+        guard case .liveZoom(let ctx) = m.state else { Issue.record("expected liveZoom"); return }
+        #expect(ctx.level == 2.0)
+    }
+
+    @Test func escFromFrozenZoomDrawStillReturnsToFrozenZoom() {
+        var m = zoomedMachine()
+        m.handle(.leftMouseDown(.zero))
+        let fx = m.handle(.escape)
+        #expect(fx == [.render]) // no startLiveStream for the frozen path
+        guard case .zoom = m.state else { Issue.record("expected zoom"); return }
+    }
+
+    @Test func liveDrawOtherExitsUnaffected() {
+        var m = liveZoomMachine()
+        m.handle(.leftMouseDown(.zero))
+        m.handle(.liveFrameFrozen)
+        // toggleZoom exits to idle, not back to live
+        let fx = m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen))
+        #expect(fx == [.dismissOverlays])
+        #expect(m.state == .idle)
+    }
+}

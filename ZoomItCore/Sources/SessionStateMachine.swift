@@ -16,10 +16,12 @@ public struct ZoomContext: Equatable, Sendable {
 public struct DrawContext: Equatable, Sendable {
     public var canvas: AnnotationCanvas
     public var zoom: ZoomContext?
+    public var fromLiveZoom: Bool
 
-    public init(canvas: AnnotationCanvas, zoom: ZoomContext?) {
+    public init(canvas: AnnotationCanvas, zoom: ZoomContext?, fromLiveZoom: Bool = false) {
         self.canvas = canvas
         self.zoom = zoom
+        self.fromLiveZoom = fromLiveZoom
     }
 }
 
@@ -276,7 +278,10 @@ public struct SessionStateMachine: Sendable {
             state = .liveZoom(ctx)
             return [.render]
         case .hotkey(.toggleDraw, _, _), .leftMouseDown:
-            return [] // freeze-then-draw: Task 2
+            return [.freezeLiveFrame]
+        case .liveFrameFrozen:
+            state = .draw(DrawContext(canvas: newCanvas(), zoom: ctx, fromLiveZoom: true))
+            return [.stopLiveStream, .render]
         case .hotkey:
             state = .idle
             return [.stopLiveStream, .dismissOverlays]
@@ -317,6 +322,10 @@ public struct SessionStateMachine: Sendable {
             return [.copyScreenshot]
         case .escape, .hotkey(.toggleDraw, _, _):
             if let zoom = ctx.zoom {
+                if ctx.fromLiveZoom {
+                    state = .liveZoom(zoom)
+                    return [.startLiveStream, .render]
+                }
                 state = .zoom(zoom)
                 return [.render]
             }

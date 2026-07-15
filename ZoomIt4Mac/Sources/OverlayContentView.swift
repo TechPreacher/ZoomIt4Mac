@@ -218,17 +218,18 @@ final class OverlayContentView: NSView {
     }
 
     private func anchorOrigin(for size: CGSize, position: BreakPosition, in bounds: CGRect) -> CGPoint {
-        let margin = bounds.width * 0.05
+        let marginX = bounds.width * 0.05
+        let marginY = bounds.height * 0.05
         // Note: view coordinates are bottom-left origin, so "top" = maxY.
         let x: CGFloat = switch position {
-        case .topLeft, .left, .bottomLeft: margin
+        case .topLeft, .left, .bottomLeft: marginX
         case .top, .center, .bottom: bounds.midX - size.width / 2
-        case .topRight, .right, .bottomRight: bounds.maxX - margin - size.width
+        case .topRight, .right, .bottomRight: bounds.maxX - marginX - size.width
         }
         let y: CGFloat = switch position {
-        case .bottomLeft, .bottom, .bottomRight: margin
+        case .bottomLeft, .bottom, .bottomRight: marginY
         case .left, .center, .right: bounds.midY - size.height / 2
-        case .topLeft, .top, .topRight: bounds.maxY - margin - size.height
+        case .topLeft, .top, .topRight: bounds.maxY - marginY - size.height
         }
         return CGPoint(x: x, y: y)
     }

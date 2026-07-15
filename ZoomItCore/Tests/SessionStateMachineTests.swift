@@ -505,4 +505,21 @@ struct SessionBreakRunTests {
         #expect(m.handle(.breakPauseResume(now: 1)).isEmpty)
         #expect(m.handle(.breakAdjust(seconds: 60, now: 1)).isEmpty)
     }
+
+    @Test func pauseIgnoredAfterExpiry() {
+        var m = breakMachine()
+        m.handle(.breakTick(now: 1600)) // expired
+        #expect(m.handle(.breakPauseResume(now: 1700)).isEmpty)
+        #expect(m.breakContext?.timer.isPaused == false)
+        #expect(m.breakContext?.timer.elapsedAfterExpiry(at: 1700) == 100)
+    }
+
+    @Test func expiryWithSoundOffAndElapsedOffJustDismisses() {
+        var settings = Settings.default
+        settings.breakTimer.playSound = false
+        settings.breakTimer.showElapsedAfterExpiry = false
+        var m = breakMachine(settings)
+        #expect(m.handle(.breakTick(now: 1600)) == [.dismissOverlays])
+        #expect(m.state == .idle)
+    }
 }

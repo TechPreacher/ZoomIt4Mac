@@ -300,7 +300,9 @@ final class SessionCoordinator {
 
     private func captureScreens() {
         guard permissions.hasScreenRecordingPermission() else {
-            permissions.requestPermission()
+            if case .capturing(.zoom) = machine.state {
+                permissions.requestPermission()
+            }
             send(.captureFailed(.permissionDenied))
             return
         }

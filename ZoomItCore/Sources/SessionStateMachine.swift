@@ -206,6 +206,7 @@ public struct SessionStateMachine: Sendable {
             }
             return effects
         case .breakPauseResume(let now):
+            guard !ctx.timer.isExpired(at: now) else { return [] }
             if ctx.timer.isPaused {
                 ctx.timer.resume(at: now)
             } else {

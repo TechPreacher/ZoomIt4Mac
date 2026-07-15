@@ -21,6 +21,7 @@ final class LiveStreamController: LiveStreaming {
     private var output: LiveFrameOutput?
     private var latestSurface: IOSurface?
     private let ciContext = CIContext()
+    private var generation = 0
 
     func start(
         displayID: CGDirectDisplayID,
@@ -29,12 +30,15 @@ final class LiveStreamController: LiveStreaming {
         onError: @escaping @MainActor (CaptureFailure) -> Void
     ) {
         stop()
+        let gen = generation
         let excludedNumbers = Set(windows.map { CGWindowID($0.windowNumber) })
         Task {
             do {
                 let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
                 guard let display = content.displays.first(where: { $0.displayID == displayID }) else {
-                    onError(.captureError)
+                    if gen == self.generation {
+                        onError(.captureError)
+                    }
                     return
                 }
                 let excluded = content.windows.filter { excludedNumbers.contains($0.windowID) }
@@ -50,21 +54,29 @@ final class LiveStreamController: LiveStreaming {
                 config.pixelFormat = kCVPixelFormatType_32BGRA
 
                 let output = LiveFrameOutput { [weak self] surface in
-                    self?.latestSurface = surface
+                    guard let self, gen == self.generation else { return }
+                    self.latestSurface = surface
                     onFrame(surface)
                 }
                 let stream = SCStream(filter: filter, configuration: config, delegate: nil)
                 try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: output.queue)
                 try await stream.startCapture()
+                guard gen == self.generation else {
+                    Task { try? await stream.stopCapture() }
+                    return
+                }
                 self.stream = stream
                 self.output = output
             } catch {
-                onError(.captureError)
+                if gen == self.generation {
+                    onError(.captureError)
+                }
             }
         }
     }
 
     func stop() {
+        generation += 1
         let stopping = stream
         stream = nil
         output = nil

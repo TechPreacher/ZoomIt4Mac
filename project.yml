@@ -31,7 +31,10 @@ targets:
   ZoomIt4Mac:
     type: application
     platform: macOS
-    sources: [ZoomIt4Mac/Sources]
+    sources:
+      - ZoomIt4Mac/Sources
+      - path: ZoomIt4Mac/Resources
+        buildPhase: resources
     dependencies:
       - target: ZoomItCore
         embed: true
@@ -41,6 +44,7 @@ targets:
         LSUIElement: true
         CFBundleDisplayName: ZoomIt4Mac
         NSPrincipalClass: NSApplication
+        CFBundleIconFile: AppIcon
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES

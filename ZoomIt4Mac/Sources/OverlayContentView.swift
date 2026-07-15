@@ -178,11 +178,17 @@ final class OverlayContentView: NSView {
         cg.saveGState()
         cg.translateBy(x: -screenFrame.minX, y: -screenFrame.minY)
 
+        // A board fill hides the snapshot behind it, so blur-rect
+        // annotations (which crop/blur the snapshot) are hidden too —
+        // consistent with "board hides everything behind it".
+        let hideBlur = drawContext.canvas.background != .transparent
         for annotation in drawContext.canvas.annotations {
+            if hideBlur, case .blurRect = annotation { continue }
             draw(annotation, in: cg)
         }
         if let preview = coordinator?.currentPreview() {
-            draw(preview, in: cg)
+            let previewIsBlur = if case .blurRect = preview { true } else { false }
+            if !(hideBlur && previewIsBlur) { draw(preview, in: cg) }
         }
         if case let .type(_, tool) = state, let origin = tool.origin {
             drawTypeRun(text: tool.text + "▏", at: origin,
@@ -395,11 +401,21 @@ final class OverlayContentView: NSView {
         blurCache.countLimit = 64
     }
 
+    // Shared across all blur draws: building a Metal-backed CIContext per
+    // cache miss is expensive, and a drag generates a miss on every event
+    // (each intermediate rect is unique).
+    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
     /// Draw the frozen snapshot region Gaussian-blurred. `rect` is in image
     /// space (global points); the context is already translated so global
     /// coordinates draw at the right window-local spot.
     private func drawBlurRect(_ rect: CGRect, in cg: CGContext) {
         guard let snapshot else { return }
+        // A drag can overshoot onto a neighboring display; pixelCrop clamps
+        // the crop, so clamp the destination rect too or the blurred image
+        // stretches to fill the unclamped rect (and caches under the wrong key).
+        let rect = rect.intersection(CGRect(origin: screenFrame.origin, size: screenFrame.size))
+        guard !rect.isNull, rect.width >= 1, rect.height >= 1 else { return }
         let key = "\(rect.origin.x),\(rect.origin.y),\(rect.width),\(rect.height)" as NSString
         if let cached = blurCache.object(forKey: key) {
             cg.interpolationQuality = .high
@@ -414,8 +430,7 @@ final class OverlayContentView: NSView {
         let blurred = input.clampedToExtent()
             .applyingGaussianBlur(sigma: 12 * scale)
             .cropped(to: input.extent)
-        let context = CIContext(options: [.useSoftwareRenderer: false])
-        guard let output = context.createCGImage(blurred, from: blurred.extent) else { return }
+        guard let output = Self.ciContext.createCGImage(blurred, from: blurred.extent) else { return }
         blurCache.setObject(output, forKey: key)
         cg.interpolationQuality = .high
         cg.draw(output, in: rect)

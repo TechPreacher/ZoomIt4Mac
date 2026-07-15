@@ -816,3 +816,233 @@ struct SessionRecordingTests {
         #expect(m.isRecording)
     }
 }
+
+struct SnipSessionTests {
+    private func machine() -> SessionStateMachine {
+        SessionStateMachine(settings: .default)
+    }
+
+    private let screen = CGRect(x: 0, y: 0, width: 1000, height: 500)
+
+    /// A machine already sitting in .snip with no selection started.
+    private func snipMachine() -> SessionStateMachine {
+        var m = machine()
+        m.handle(.hotkey(.snip, mouse: CGPoint(x: 1, y: 1), screen: screen))
+        m.handle(.captureCompleted)
+        return m
+    }
+
+    // MARK: entry
+
+    @Test func snipHotkeyStartsCapture() {
+        var m = machine()
+        let effects = m.handle(.hotkey(.snip, mouse: CGPoint(x: 1, y: 1), screen: screen))
+        #expect(m.state == .capturing(.snip))
+        #expect(effects == [.captureScreens])
+    }
+
+    @Test func captureCompletedEntersSnip() {
+        var m = machine()
+        m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        let effects = m.handle(.captureCompleted)
+        #expect(m.state == .snip(SnipContext()))
+        #expect(effects == [.showOverlays, .render])
+    }
+
+    @Test func capturePermissionFailureShowsGuidance() {
+        var m = machine()
+        m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        let effects = m.handle(.captureFailed(.permissionDenied))
+        #expect(m.state == .idle)
+        #expect(effects == [.showPermissionGuidance])
+    }
+
+    @Test func captureErrorNotifies() {
+        var m = machine()
+        m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        let effects = m.handle(.captureFailed(.captureError))
+        #expect(m.state == .idle)
+        #expect(effects == [.notifyCaptureFailure])
+    }
+
+    @Test func escapeDuringCaptureAborts() {
+        var m = machine()
+        m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        let effects = m.handle(.escape)
+        #expect(m.state == .idle)
+        #expect(effects == [])
+    }
+
+    // MARK: selection lifecycle
+
+    @Test func mouseDownAnchorsSelection() {
+        var m = snipMachine()
+        let effects = m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        #expect(m.state == .snip(SnipContext(anchor: CGPoint(x: 100, y: 100), current: CGPoint(x: 100, y: 100))))
+        #expect(effects == [.render])
+    }
+
+    @Test func mouseMovedUpdatesCurrentOnlyWhileDragging() {
+        var m = snipMachine()
+        #expect(m.handle(.mouseMoved(CGPoint(x: 5, y: 5))) == [])
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        let effects = m.handle(.mouseMoved(CGPoint(x: 250, y: 180)))
+        #expect(m.state == .snip(SnipContext(anchor: CGPoint(x: 100, y: 100), current: CGPoint(x: 250, y: 180))))
+        #expect(effects == [.render])
+    }
+
+    @Test func mouseUpExportsNormalizedSelectionThenDismisses() {
+        var m = snipMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 300, y: 200)))
+        m.handle(.mouseMoved(CGPoint(x: 150, y: 260)))
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 100, y: 300), optionHeld: false))
+        #expect(m.state == .idle)
+        // Export MUST precede dismissOverlays: dismiss clears the snapshot
+        // store the crop reads from.
+        #expect(effects == [
+            .exportSnip(selection: CGRect(x: 100, y: 200, width: 200, height: 100), alsoSave: false),
+            .dismissOverlays,
+        ])
+    }
+
+    @Test func optionHeldRequestsSave() {
+        var m = snipMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 0, y: 0)))
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 50, y: 50), optionHeld: true))
+        #expect(effects == [
+            .exportSnip(selection: CGRect(x: 0, y: 0, width: 50, height: 50), alsoSave: true),
+            .dismissOverlays,
+        ])
+    }
+
+    @Test func tinyReleaseClearsSelectionAndStays() {
+        var m = snipMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 102, y: 102), optionHeld: false))
+        #expect(m.state == .snip(SnipContext()))
+        #expect(effects == [.render])
+    }
+
+    @Test func mouseUpWithoutAnchorIgnored() {
+        var m = snipMachine()
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 50, y: 50), optionHeld: false))
+        #expect(m.state == .snip(SnipContext()))
+        #expect(effects == [])
+    }
+
+    @Test func mouseUpIgnoredOutsideSnip() {
+        var m = machine()
+        #expect(m.handle(.leftMouseUp(CGPoint(x: 50, y: 50), optionHeld: false)) == [])
+        #expect(m.state == .idle)
+    }
+
+    // MARK: cancels
+
+    @Test func escapeCancelsSnip() {
+        var m = snipMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 10, y: 10)))
+        let effects = m.handle(.escape)
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func rightClickCancelsSnip() {
+        var m = snipMachine()
+        let effects = m.handle(.rightMouseAction)
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func snipHotkeyAgainCancels() {
+        var m = snipMachine()
+        let effects = m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func otherModeHotkeyCancelsSnip() {
+        var m = snipMachine()
+        let effects = m.handle(.hotkey(.toggleZoom, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func breakRequestCancelsSnip() {
+        var m = snipMachine()
+        let effects = m.handle(.breakRequested(now: 100))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func displayChangeCancelsSnip() {
+        var m = snipMachine()
+        let effects = m.handle(.displayConfigurationChanged)
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    // MARK: interaction with other modes and recording
+
+    @Test func snipHotkeyExitsZoom() {
+        var m = machine()
+        m.handle(.hotkey(.toggleZoom, mouse: .zero, screen: screen))
+        m.handle(.captureCompleted)
+        let effects = m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func snipHotkeyExitsLiveZoom() {
+        var m = machine()
+        m.handle(.hotkey(.toggleLiveZoom, mouse: .zero, screen: screen))
+        let effects = m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.stopLiveStream, .dismissOverlays])
+    }
+
+    @Test func snipHotkeyExitsDraw() {
+        var m = machine()
+        m.handle(.hotkey(.toggleDraw, mouse: .zero, screen: screen))
+        let effects = m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func snipHotkeyExitsType() {
+        var m = machine()
+        m.handle(.hotkey(.toggleDraw, mouse: .zero, screen: screen))
+        m.handle(.keyCommand(.enterType))
+        let effects = m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func snipHotkeyExitsBreak() {
+        var m = machine()
+        m.handle(.breakRequested(now: 100))
+        let effects = m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        #expect(m.state == .idle)
+        #expect(effects == [.dismissOverlays])
+    }
+
+    @Test func recordingToggleDuringSnipLeavesSnipAlone() {
+        var m = snipMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 10, y: 10)))
+        let before = m.state
+        let effects = m.handle(.hotkey(.toggleRecord, mouse: .zero, screen: screen))
+        #expect(m.state == before)
+        #expect(m.recordingPhase == .pending)
+        #expect(effects == [.showRecordingNotice])
+    }
+
+    @Test func snipEventsLeaveRecordingUntouched() {
+        var m = machine()
+        m.handle(.hotkey(.toggleRecord, mouse: .zero, screen: screen))
+        m.handle(.recordingNoticeElapsed) // recording now active
+        m.handle(.hotkey(.snip, mouse: .zero, screen: screen))
+        m.handle(.captureCompleted)
+        m.handle(.leftMouseDown(CGPoint(x: 0, y: 0)))
+        m.handle(.leftMouseUp(CGPoint(x: 100, y: 100), optionHeld: false))
+        #expect(m.isRecording)
+    }
+}

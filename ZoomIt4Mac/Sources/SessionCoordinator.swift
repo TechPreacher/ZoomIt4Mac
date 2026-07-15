@@ -302,6 +302,9 @@ final class SessionCoordinator {
             exportScreenshot(toClipboard: false)
         case .copyScreenshot:
             exportScreenshot(toClipboard: true)
+        case .exportSnip:
+            // Task 4: wire the shell (coordinator and overlay)
+            break
         case .playExpirySound:
             if let sound = NSSound(named: "Glass") {
                 sound.play()

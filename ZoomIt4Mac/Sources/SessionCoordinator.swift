@@ -307,6 +307,8 @@ final class SessionCoordinator {
             liveStream.stop()
         case .freezeLiveFrame:
             freezeLiveFrame()
+        case .startRecording, .stopRecording:
+            break // Task 4
         }
     }
 

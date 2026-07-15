@@ -681,3 +681,92 @@ struct SessionLiveZoomFreezeTests {
         #expect(m.state == .idle)
     }
 }
+
+struct SessionRecordingTests {
+    @Test func toggleStartsAndStopsFromIdle() {
+        var m = machine()
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.startRecording])
+        #expect(m.isRecording)
+        #expect(m.state == .idle) // no mode entered
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.stopRecording])
+        #expect(!m.isRecording)
+    }
+
+    @Test func toggleDoesNotDisturbActiveModes() {
+        var zoom = zoomedMachine()
+        #expect(zoom.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.startRecording])
+        guard case .zoom = zoom.state else { Issue.record("zoom must survive"); return }
+
+        var draw = drawingMachine()
+        draw.handle(.annotationAdded(.line(from: .zero, to: CGPoint(x: 5, y: 5), color: .red, width: 4)))
+        draw.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(draw.isRecording)
+        #expect(draw.drawContext?.canvas.annotations.count == 1) // context preserved
+
+        var brk = breakMachine()
+        brk.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(brk.isRecording)
+        guard case .breakTimer = brk.state else { Issue.record("break must survive"); return }
+
+        var live = liveZoomMachine()
+        live.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(live.isRecording)
+        guard case .liveZoom = live.state else { Issue.record("live zoom must survive"); return }
+    }
+
+    @Test func modeChangesLeaveRecordingOn() {
+        var m = machine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        m.handle(.hotkey(.toggleDraw, mouse: testMouse, screen: testScreen)) // enter draw
+        #expect(m.isRecording)
+        m.handle(.escape) // exit draw
+        #expect(m.isRecording)
+        #expect(m.state == .idle)
+        m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen))
+        m.handle(.captureCompleted) // enter zoom
+        #expect(m.isRecording)
+        m.handle(.escape)
+        #expect(m.isRecording)
+    }
+
+    @Test func recordingFailedClearsOnlyWhenRecording() {
+        var m = machine()
+        #expect(m.handle(.recordingFailed).isEmpty)
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.recordingFailed) == [.notifyCaptureFailure])
+        #expect(!m.isRecording)
+        #expect(m.handle(.recordingFailed).isEmpty) // idempotent
+    }
+
+    @Test func displayChangeStopsRecordingAndExitsMode() {
+        var m = zoomedMachine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        let fx = m.handle(.displayConfigurationChanged)
+        #expect(fx == [.stopRecording, .dismissOverlays])
+        #expect(!m.isRecording)
+        #expect(m.state == .idle)
+    }
+
+    @Test func displayChangeInIdleWhileRecordingJustStops() {
+        var m = machine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.displayConfigurationChanged) == [.stopRecording])
+        #expect(!m.isRecording)
+    }
+
+    @Test func displayChangeDuringLiveZoomWhileRecordingOrdersEffects() {
+        var m = liveZoomMachine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.displayConfigurationChanged) == [.stopRecording, .stopLiveStream, .dismissOverlays])
+    }
+
+    @Test func recordHotkeyDoesNotCommitOrExitType() {
+        var m = drawingMachine()
+        m.handle(.keyCommand(.enterType))
+        m.handle(.leftMouseDown(.zero))
+        m.handle(.textInput("hi"))
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.isRecording)
+        guard case .type = m.state else { Issue.record("type must survive"); return }
+    }
+}

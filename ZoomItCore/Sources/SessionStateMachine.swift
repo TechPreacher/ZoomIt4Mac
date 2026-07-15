@@ -85,6 +85,7 @@ public enum SessionEvent: Equatable, Sendable {
     case breakAdjust(seconds: TimeInterval, now: TimeInterval)
     case liveFrameFrozen
     case liveStreamFailed(CaptureFailure)
+    case recordingFailed
 }
 
 public enum SessionEffect: Equatable, Sendable {
@@ -100,11 +101,14 @@ public enum SessionEffect: Equatable, Sendable {
     case startLiveStream
     case stopLiveStream
     case freezeLiveFrame
+    case startRecording
+    case stopRecording
 }
 
 public struct SessionStateMachine: Sendable {
     public private(set) var state: SessionState = .idle
     public private(set) var settings: Settings
+    public private(set) var isRecording = false
 
     public init(settings: Settings) {
         self.settings = settings.sanitized()
@@ -116,11 +120,24 @@ public struct SessionStateMachine: Sendable {
         case .settingsChanged(let s):
             settings = s.sanitized()
             return []
+        case .hotkey(.toggleRecord, _, _):
+            isRecording.toggle()
+            return isRecording ? [.startRecording] : [.stopRecording]
+        case .recordingFailed:
+            guard isRecording else { return [] }
+            isRecording = false
+            return [.notifyCaptureFailure]
         case .displayConfigurationChanged:
-            if case .idle = state { return [] }
+            var effects: [SessionEffect] = []
+            if isRecording {
+                isRecording = false
+                effects.append(.stopRecording)
+            }
+            if case .idle = state { return effects }
             let wasLive = if case .liveZoom = state { true } else { false }
             state = .idle
-            return wasLive ? [.stopLiveStream, .dismissOverlays] : [.dismissOverlays]
+            effects.append(contentsOf: wasLive ? [.stopLiveStream, .dismissOverlays] : [.dismissOverlays])
+            return effects
         default:
             break
         }

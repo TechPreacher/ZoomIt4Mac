@@ -36,4 +36,16 @@ xcrun notarytool submit build/ZoomIt4Mac.zip --keychain-profile "$PROFILE" --wai
 xcrun stapler staple "$EXPORT/ZoomIt4Mac.app"
 ditto -c -k --keepParent "$EXPORT/ZoomIt4Mac.app" build/ZoomIt4Mac-notarized.zip
 
-echo "Done: build/ZoomIt4Mac-notarized.zip"
+# DMG: stapled app + /Applications symlink; the DMG is signed, notarized,
+# and stapled itself so Gatekeeper accepts it before it is ever mounted.
+STAGING=build/dmg
+rm -rf "$STAGING"
+mkdir -p "$STAGING"
+cp -R "$EXPORT/ZoomIt4Mac.app" "$STAGING/"
+ln -s /Applications "$STAGING/Applications"
+hdiutil create -volname "ZoomIt4Mac" -srcfolder "$STAGING" -ov -format UDZO build/ZoomIt4Mac.dmg
+codesign --force --sign "Developer ID Application" build/ZoomIt4Mac.dmg
+xcrun notarytool submit build/ZoomIt4Mac.dmg --keychain-profile "$PROFILE" --wait
+xcrun stapler staple build/ZoomIt4Mac.dmg
+
+echo "Done: build/ZoomIt4Mac-notarized.zip and build/ZoomIt4Mac.dmg"

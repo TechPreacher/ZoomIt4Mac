@@ -58,7 +58,7 @@ Zoom, Live Zoom, Snip, and Screen Recording require **Screen Recording** permiss
 brew install TechPreacher/tap/zoomit4mac
 ```
 
-Or grab the notarized zip from the [latest release](https://github.com/TechPreacher/ZoomIt4Mac/releases/latest) and drop `ZoomIt4Mac.app` into `/Applications`.
+Or grab the notarized `.dmg` (or zip) from the [latest release](https://github.com/TechPreacher/ZoomIt4Mac/releases/latest) and drag `ZoomIt4Mac.app` into `/Applications`.
 
 ## Building
 
@@ -80,17 +80,19 @@ Design and plan documents live under [`docs/`](docs/).
 
 ## Release
 
-`scripts/release.sh` archives, exports with Developer ID, notarizes, and staples a distributable zip (see the script header for one-time credential setup).
+`scripts/release.sh` archives, exports with Developer ID, notarizes, and staples a distributable zip and a drag-to-Applications `.dmg` (the DMG contains the stapled app plus an `/Applications` symlink and is itself signed, notarized, and stapled). See the script header for one-time credential setup.
 
 Cutting a release:
 
 1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`, commit.
-2. `bash scripts/release.sh` → produces `build/ZoomIt4Mac-notarized.zip`; note the `shasum -a 256` of the zip.
+2. `bash scripts/release.sh` → produces `build/ZoomIt4Mac-notarized.zip` and `build/ZoomIt4Mac.dmg`; note the `shasum -a 256` of the zip (the cask pins it).
 3. Tag and publish:
    ```sh
    git tag vX.Y.Z && git push origin main vX.Y.Z
    cp build/ZoomIt4Mac-notarized.zip build/ZoomIt4Mac-X.Y.Z.zip
-   gh release create vX.Y.Z build/ZoomIt4Mac-X.Y.Z.zip --title "ZoomIt4Mac X.Y.Z" --notes "..."
+   cp build/ZoomIt4Mac.dmg build/ZoomIt4Mac-X.Y.Z.dmg
+   gh release create vX.Y.Z build/ZoomIt4Mac-X.Y.Z.zip build/ZoomIt4Mac-X.Y.Z.dmg \
+     --title "ZoomIt4Mac X.Y.Z" --notes "..."
    ```
 4. Update `version` and `sha256` in [`TechPreacher/homebrew-tap`](https://github.com/TechPreacher/homebrew-tap)'s `Casks/zoomit4mac.rb`, push.
 

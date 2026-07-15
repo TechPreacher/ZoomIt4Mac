@@ -24,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: settings,
             snapshotter: ScreenSnapshotter(),
             permissions: PermissionCoordinator(),
-            liveStream: LiveStreamController()
+            liveStream: LiveStreamController(),
+            recorder: ScreenRecorderController()
         )
         self.coordinator = coordinator
 
@@ -42,9 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onLiveZoom: { coordinator.trigger(.toggleLiveZoom) },
             onDraw: { coordinator.trigger(.toggleDraw) },
             onBreak: { coordinator.trigger(.toggleBreak) },
+            onRecord: { coordinator.trigger(.toggleRecord) },
             onShortcuts: { shortcutsWindow.show() },
             onSettings: { settingsWindow.show() }
         )
+        coordinator.onRecordingStateChange = { [weak self] recording in
+            self?.statusItemController?.setRecording(recording)
+        }
 
         let registrar = HotkeyRegistrar(onHotkey: { action in
             coordinator.trigger(action)

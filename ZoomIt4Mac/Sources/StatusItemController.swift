@@ -7,14 +7,17 @@ final class StatusItemController: NSObject {
     private let onLiveZoom: () -> Void
     private let onDraw: () -> Void
     private let onBreak: () -> Void
+    private let onRecord: () -> Void
     private let onShortcuts: () -> Void
     private let onSettings: () -> Void
+    private var recordItem: NSMenuItem!
 
     init(
         onZoom: @escaping () -> Void,
         onLiveZoom: @escaping () -> Void,
         onDraw: @escaping () -> Void,
         onBreak: @escaping () -> Void,
+        onRecord: @escaping () -> Void,
         onShortcuts: @escaping () -> Void,
         onSettings: @escaping () -> Void
     ) {
@@ -23,6 +26,7 @@ final class StatusItemController: NSObject {
         self.onLiveZoom = onLiveZoom
         self.onDraw = onDraw
         self.onBreak = onBreak
+        self.onRecord = onRecord
         self.onShortcuts = onShortcuts
         self.onSettings = onSettings
         super.init()
@@ -37,6 +41,8 @@ final class StatusItemController: NSObject {
         menu.addItem(makeItem("Live Zoom", action: #selector(liveZoomTapped), key: "4"))
         menu.addItem(makeItem("Draw", action: #selector(drawTapped), key: "2"))
         menu.addItem(makeItem("Break Timer", action: #selector(breakTapped), key: "3"))
+        recordItem = makeItem("Start Recording", action: #selector(recordTapped), key: "5")
+        menu.addItem(recordItem)
         menu.addItem(.separator())
         menu.addItem(makeItem("Keyboard Shortcuts…", action: #selector(shortcutsTapped), key: ""))
         menu.addItem(makeItem("Settings…", action: #selector(settingsTapped), key: ","))
@@ -61,13 +67,39 @@ final class StatusItemController: NSObject {
     @objc private func liveZoomTapped() { onLiveZoom() }
     @objc private func drawTapped() { onDraw() }
     @objc private func breakTapped() { onBreak() }
+    @objc private func recordTapped() { onRecord() }
     @objc private func shortcutsTapped() { onShortcuts() }
     @objc private func settingsTapped() { onSettings() }
 
+    private var warningOn = false
+    private var recordingOn = false
+
     func setWarning(_ on: Bool) {
-        statusItem.button?.image = NSImage(
-            systemSymbolName: on ? "exclamationmark.triangle" : "plus.magnifyingglass",
-            accessibilityDescription: on ? "ZoomIt4Mac — hotkey problem" : "ZoomIt4Mac"
-        )
+        warningOn = on
+        updateIcon()
+    }
+
+    func setRecording(_ on: Bool) {
+        recordingOn = on
+        recordItem.title = on ? "Stop Recording" : "Start Recording"
+        updateIcon()
+    }
+
+    private func updateIcon() {
+        let (symbol, description): (String, String) = if warningOn {
+            ("exclamationmark.triangle", "ZoomIt4Mac — hotkey problem")
+        } else if recordingOn {
+            ("record.circle", "ZoomIt4Mac — recording")
+        } else {
+            ("plus.magnifyingglass", "ZoomIt4Mac")
+        }
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
+        if recordingOn && !warningOn {
+            image?.isTemplate = false // allow the red tint
+            statusItem.button?.contentTintColor = .systemRed
+        } else {
+            statusItem.button?.contentTintColor = nil
+        }
+        statusItem.button?.image = image
     }
 }

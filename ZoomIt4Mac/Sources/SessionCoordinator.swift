@@ -17,21 +17,26 @@ final class SessionCoordinator {
     private let snapshotter: Snapshotting
     private let permissions: PermissionCoordinator
     private let liveStream: LiveStreaming
+    private let recorder: ScreenRecording
     private var overlays: [CGDirectDisplayID: OverlayWindowController] = [:]
     private(set) var snapshots: [CGDirectDisplayID: CGImage] = [:]
     private var activeTracker: ShapeTracker?
     private var breakTickTimer: Timer?
     private var breakImage: CGImage?
 
+    var onRecordingStateChange: ((Bool) -> Void)?
+    private var lastReportedRecording = false
+
     var currentState: SessionState { machine.state }
 
     func currentSettings() -> Settings { machine.settings }
 
-    init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator, liveStream: LiveStreaming) {
+    init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator, liveStream: LiveStreaming, recorder: ScreenRecording) {
         self.machine = SessionStateMachine(settings: settings)
         self.snapshotter = snapshotter
         self.permissions = permissions
         self.liveStream = liveStream
+        self.recorder = recorder
     }
 
     // MARK: - Event entry points
@@ -55,6 +60,10 @@ final class SessionCoordinator {
         // would otherwise stick, forcing the next drag into ellipse mode.
         if case .draw = machine.state {} else { tabHeld = false }
         syncBreakTickTimer()
+        if machine.isRecording != lastReportedRecording {
+            lastReportedRecording = machine.isRecording
+            onRecordingStateChange?(machine.isRecording)
+        }
     }
 
     func applySettings(_ settings: Settings) {
@@ -307,9 +316,41 @@ final class SessionCoordinator {
             liveStream.stop()
         case .freezeLiveFrame:
             freezeLiveFrame()
-        case .startRecording, .stopRecording:
-            break // Task 4
+        case .startRecording:
+            startRecording()
+        case .stopRecording:
+            recorder.stop { url in
+                if let url {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            }
         }
+    }
+
+    private func startRecording() {
+        guard permissions.hasScreenRecordingPermission() else {
+            // Defer so the current effect batch finishes before the machine
+            // unwinds; the system prompt is never hidden behind overlays.
+            Task { @MainActor in
+                self.permissions.requestPermission()
+                self.send(.recordingFailed)
+            }
+            return
+        }
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screen(containing: mouse) ?? NSScreen.main else {
+            send(.recordingFailed)
+            return
+        }
+        let recording = machine.settings.recording
+        recorder.start(
+            displayID: screen.displayID,
+            microphone: recording.recordMicrophone,
+            systemAudio: recording.recordSystemAudio,
+            onError: { [weak self] _ in
+                self?.send(.recordingFailed)
+            }
+        )
     }
 
     private func startLiveStream() {

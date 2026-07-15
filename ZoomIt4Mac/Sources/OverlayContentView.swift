@@ -349,6 +349,8 @@ final class OverlayContentView: NSView {
             cg.strokeEllipse(in: rect)
         case let .text(string, at, color, fontSize):
             drawTypeRun(text: string, at: at, color: color, fontSize: fontSize)
+        case .highlighted, .blurRect:
+            break // Rendering lands with the shell task.
         }
     }
 

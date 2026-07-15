@@ -41,3 +41,32 @@ struct SettingsStoreTests {
         #expect(loaded.penWidth == 1)
     }
 }
+
+struct SettingsBreakMigrationTests {
+    @Test func v1JSONWithoutBreakKeyDecodesToDefaults() throws {
+        // Persisted by the v1 app: no breakTimer field existed.
+        let store = SettingsStore(persistence: FakePersistence())
+        var v1 = Settings.default
+        v1.penColor = .green
+        let encoder = JSONEncoder()
+        var object = try JSONSerialization.jsonObject(with: encoder.encode(v1)) as! [String: Any]
+        object.removeValue(forKey: "breakTimer")
+        let v1Data = try JSONSerialization.data(withJSONObject: object)
+
+        let p = FakePersistence()
+        p.storage["zoomit.settings.v1"] = v1Data
+        let loaded = SettingsStore(persistence: p).load()
+        #expect(loaded.penColor == .green)               // old fields preserved
+        #expect(loaded.breakTimer == .default)           // new field defaulted
+        _ = store // silence unused warning
+    }
+
+    @Test func breakConfigSanitizedOnLoad() throws {
+        let p = FakePersistence()
+        var s = Settings.default
+        s.breakTimer.duration = 1
+        p.storage["zoomit.settings.v1"] = try JSONEncoder().encode(s)
+        let loaded = SettingsStore(persistence: p).load()
+        #expect(loaded.breakTimer.duration == 60)
+    }
+}

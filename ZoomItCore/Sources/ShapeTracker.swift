@@ -9,14 +9,16 @@ public struct ShapeTracker: Equatable, Sendable {
     public let start: CGPoint
     public let color: AnnotationColor
     public let width: CGFloat
+    public let style: PenStyle
     private var points: [CGPoint]
     private var current: CGPoint
 
-    public init(shape: ShapeKind, start: CGPoint, color: AnnotationColor, width: CGFloat) {
+    public init(shape: ShapeKind, start: CGPoint, color: AnnotationColor, width: CGFloat, style: PenStyle = .normal) {
         self.shape = shape
         self.start = start
         self.color = color
         self.width = width
+        self.style = style
         self.points = [start]
         self.current = start
     }
@@ -27,6 +29,18 @@ public struct ShapeTracker: Equatable, Sendable {
     }
 
     public func finish() -> Annotation? {
+        if style == .blur {
+            // Blur ignores the shape: always a normalized rectangle.
+            guard current != start else { return nil }
+            return .blurRect(normalizedRect)
+        }
+        guard let base = baseAnnotation() else { return nil }
+        return style == .highlighter ? .highlighted(base) : base
+    }
+
+    public func preview() -> Annotation? { finish() }
+
+    private func baseAnnotation() -> Annotation? {
         switch shape {
         case .freehand:
             guard points.count >= 2 else { return nil }
@@ -45,8 +59,6 @@ public struct ShapeTracker: Equatable, Sendable {
             return .ellipse(in: normalizedRect, color: color, width: width)
         }
     }
-
-    public func preview() -> Annotation? { finish() }
 
     private var normalizedRect: CGRect {
         CGRect(

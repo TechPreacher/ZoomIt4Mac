@@ -1046,3 +1046,98 @@ struct SnipSessionTests {
         #expect(m.isRecording)
     }
 }
+
+struct PenStyleTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1000, height: 500)
+
+    /// Plain draw (no zoom context, no snapshot).
+    private func plainDraw() -> SessionStateMachine {
+        var m = SessionStateMachine(settings: .default)
+        m.handle(.hotkey(.toggleDraw, mouse: .zero, screen: screen))
+        return m
+    }
+
+    /// Draw on a frozen zoom (zoom context present).
+    private func zoomDraw() -> SessionStateMachine {
+        var m = SessionStateMachine(settings: .default)
+        m.handle(.hotkey(.toggleZoom, mouse: CGPoint(x: 1, y: 1), screen: screen))
+        m.handle(.captureCompleted)
+        m.handle(.leftMouseDown(CGPoint(x: 1, y: 1)))
+        return m
+    }
+
+    private func canvas(_ m: SessionStateMachine) -> AnnotationCanvas? {
+        if case .draw(let ctx) = m.state { return ctx.canvas }
+        return nil
+    }
+
+    @Test func defaultStyleIsNormal() {
+        #expect(canvas(plainDraw())?.penStyle == .normal)
+    }
+
+    @Test func highlighterTogglesOnAndOff() {
+        var m = plainDraw()
+        #expect(m.handle(.keyCommand(.toggleHighlighter)) == [.render])
+        #expect(canvas(m)?.penStyle == .highlighter)
+        #expect(m.handle(.keyCommand(.toggleHighlighter)) == [.render])
+        #expect(canvas(m)?.penStyle == .normal)
+    }
+
+    @Test func blurTogglesInZoomBackedDraw() {
+        var m = zoomDraw()
+        #expect(m.handle(.keyCommand(.toggleBlur)) == [.render])
+        #expect(canvas(m)?.penStyle == .blur)
+        #expect(m.handle(.keyCommand(.toggleBlur)) == [.render])
+        #expect(canvas(m)?.penStyle == .normal)
+    }
+
+    @Test func blurRefusedInPlainDraw() {
+        var m = plainDraw()
+        #expect(m.handle(.keyCommand(.toggleBlur)) == [.notifyCaptureFailure])
+        #expect(canvas(m)?.penStyle == .normal)
+    }
+
+    @Test func highlighterSwitchesDirectlyToBlur() {
+        var m = zoomDraw()
+        m.handle(.keyCommand(.toggleHighlighter))
+        m.handle(.keyCommand(.toggleBlur))
+        #expect(canvas(m)?.penStyle == .blur)
+    }
+
+    @Test func colorKeyRevertsStyleToNormalAndSetsColor() {
+        var m = zoomDraw()
+        m.handle(.keyCommand(.toggleBlur))
+        #expect(m.handle(.keyCommand(.color(.green))) == [.render])
+        #expect(canvas(m)?.penStyle == .normal)
+        #expect(canvas(m)?.color == .green)
+    }
+
+    @Test func boardRevertsBlurButNotHighlighter() {
+        var m = zoomDraw()
+        m.handle(.keyCommand(.toggleBlur))
+        m.handle(.keyCommand(.whiteboard))
+        #expect(canvas(m)?.penStyle == .normal)
+
+        var h = zoomDraw()
+        h.handle(.keyCommand(.toggleHighlighter))
+        h.handle(.keyCommand(.blackboard))
+        #expect(canvas(h)?.penStyle == .highlighter)
+    }
+
+    @Test func styleSurvivesTypeRoundTrip() {
+        var m = zoomDraw()
+        m.handle(.keyCommand(.toggleHighlighter))
+        m.handle(.keyCommand(.enterType))
+        m.handle(.escape)
+        #expect(canvas(m)?.penStyle == .highlighter)
+    }
+
+    @Test func blurAllowedInDrawFromFrozenLiveZoom() {
+        var m = SessionStateMachine(settings: .default)
+        m.handle(.hotkey(.toggleLiveZoom, mouse: CGPoint(x: 1, y: 1), screen: screen))
+        m.handle(.leftMouseDown(CGPoint(x: 1, y: 1)))
+        m.handle(.liveFrameFrozen)
+        #expect(m.handle(.keyCommand(.toggleBlur)) == [.render])
+        #expect(canvas(m)?.penStyle == .blur)
+    }
+}

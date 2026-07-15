@@ -53,6 +53,8 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: "⌘Z / Right click", action: "Undo"),
             Shortcut(keys: "E", action: "Erase all"),
             Shortcut(keys: "W / K", action: "Whiteboard / blackboard"),
+            Shortcut(keys: "H", action: "Highlighter pen (toggle)"),
+            Shortcut(keys: "X", action: "Blur pen — drag a rectangle (frozen zoom only)"),
             Shortcut(keys: "T", action: "Type text"),
             Shortcut(keys: "⌘S / ⌘C", action: "Save as PNG / copy to clipboard"),
             Shortcut(keys: "Esc", action: "Back to zoom, or exit"),

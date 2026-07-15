@@ -54,3 +54,50 @@ struct ShapeTrackerTests {
         #expect(rect == CGRect(x: 0, y: 0, width: 10, height: 30))
     }
 }
+
+struct ShapeTrackerStyleTests {
+    @Test func highlighterWrapsEveryShape() {
+        let shapes: [ShapeKind] = [.freehand, .line, .arrow, .rectangle, .ellipse]
+        for shape in shapes {
+            var t = ShapeTracker(shape: shape, start: .zero, color: .yellow, width: 4, style: .highlighter)
+            t.update(CGPoint(x: 20, y: 10))
+            guard case .highlighted = t.finish() else {
+                Issue.record("expected .highlighted for \(shape)")
+                continue
+            }
+        }
+    }
+
+    @Test func highlighterPropagatesNilForEmptyDrags() {
+        var freehand = ShapeTracker(shape: .freehand, start: .zero, color: .red, width: 4, style: .highlighter)
+        #expect(freehand.finish() == nil) // single point, no movement
+        var line = ShapeTracker(shape: .line, start: .zero, color: .red, width: 4, style: .highlighter)
+        line.update(.zero)
+        #expect(line.finish() == nil)
+    }
+
+    @Test func blurAlwaysYieldsNormalizedRect() {
+        // Shape is ignored while the blur pen is active — always a rect.
+        var t = ShapeTracker(shape: .arrow, start: CGPoint(x: 30, y: 40), color: .red, width: 4, style: .blur)
+        t.update(CGPoint(x: 10, y: 20))
+        #expect(t.finish() == .blurRect(CGRect(x: 10, y: 20, width: 20, height: 20)))
+    }
+
+    @Test func blurNilOnZeroDrag() {
+        var t = ShapeTracker(shape: .freehand, start: CGPoint(x: 5, y: 5), color: .red, width: 4, style: .blur)
+        t.update(CGPoint(x: 5, y: 5))
+        #expect(t.finish() == nil)
+    }
+
+    @Test func defaultStyleKeepsExistingBehavior() {
+        var t = ShapeTracker(shape: .line, start: .zero, color: .blue, width: 3)
+        t.update(CGPoint(x: 4, y: 4))
+        #expect(t.finish() == .line(from: .zero, to: CGPoint(x: 4, y: 4), color: .blue, width: 3))
+    }
+
+    @Test func previewMatchesFinishForStyles() {
+        var t = ShapeTracker(shape: .rectangle, start: .zero, color: .green, width: 2, style: .highlighter)
+        t.update(CGPoint(x: 8, y: 8))
+        #expect(t.preview() == t.finish())
+    }
+}

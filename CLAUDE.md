@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ZoomIt4Mac — a native macOS re-implementation of Sysinternals ZoomIt (Windows), in Swift. Menu bar app (`LSUIElement`), macOS 14+, Swift 6.
 
-Implemented: **Zoom** (⌃1, frozen-screen magnify), **Live Zoom** (⌃4, SCStream), **Draw** (⌃2, pen/shapes/colors/undo/boards) with **Type** (T), **Break Timer** (⌃3), rebindable hotkeys, settings + shortcuts-reference windows, ⌘S/⌘C export. Deferred features (screen recording ⌃5, snip, DemoType, blur pens…) are catalogued with implementation notes in `docs/superpowers/specs/2026-07-14-zoomit4mac-v1-design.md`; per-feature specs and plans live under `docs/superpowers/`.
+Implemented: **Zoom** (⌃1, frozen-screen magnify), **Live Zoom** (⌃4, SCStream), **Draw** (⌃2, pen/shapes/colors/undo/boards, highlighter `H` + blur `X` pens) with **Type** (T), **Break Timer** (⌃3), **Screen Recording** (⌃5, mic/system audio), **Snip** (⌃6, region to clipboard), rebindable hotkeys, settings + shortcuts-reference windows, ⌘S/⌘C export. Remaining deferred features (DemoType, …) are catalogued with implementation notes in `docs/superpowers/specs/2026-07-14-zoomit4mac-v1-design.md`; per-feature specs and plans live under `docs/superpowers/`.
 
 ## Commands
 
@@ -50,7 +50,8 @@ input (hotkeys/keys/mouse/timers) → SessionCoordinator.send(event)
 
 ## Hard-won macOS gotchas (do not "simplify" these away)
 
-- Overlay windows: borderless `NSWindow` **subclass overriding `canBecomeKey`** (stock borderless never becomes key → all keyboard input dies) + **explicitly set `ignoresMouseEvents = false`** (disables per-pixel transparency hit-testing; without it clicks pass through the transparent draw overlay). `sharingType = .none` is the real feedback-loop protection for capture — the SCContentFilter window exclusion usually matches nothing.
+- Overlay windows: borderless `NSWindow` **subclass overriding `canBecomeKey`** (stock borderless never becomes key → all keyboard input dies) + **explicitly set `ignoresMouseEvents = false`** (disables per-pixel transparency hit-testing; without it clicks pass through the transparent draw overlay). Overlays are `sharingType = .readOnly` so recordings capture annotations; Live Zoom's explicit `SCContentFilter(excludingWindows:)` is the feedback-loop protection for its stream.
+- The window server ignores `NSCursor.set()` made outside event handling for a freshly re-created overlay window under a stationary pointer (arrow persists until a click). Assert the mode cursor from within genuine mouse-event handlers (`mouseMoved`/`mouseDragged`/`mouseDown`) — those sets are always honored. Cursor rects/`cursorUpdate` alone are not sufficient.
 - TCC: Screen Recording permission is keyed to the code signature — `DEVELOPMENT_TEAM` in project.yml keeps debug builds stably signed so the grant survives rebuilds. **No Accessibility permission needed** (Carbon `RegisterEventHotKey` + local monitors only; do not introduce CGEventTap without revisiting this).
 - Never present a modal (save panel, alert, permission prompt) while `.screenSaver`-level overlays are up — hide/dismiss first, or defer the prompt past the current effect batch.
 - LaunchServices caches app icons per bundle path; About panel icon is set explicitly at launch for this reason.

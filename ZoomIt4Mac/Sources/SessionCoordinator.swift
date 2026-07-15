@@ -299,22 +299,9 @@ final class SessionCoordinator {
             NSSound.beep()
             NSLog("screen capture failed")
         case .saveScreenshot:
-            if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
-                // NSSavePanel.runModal() would appear behind our .screenSaver-level
-                // overlay windows, making the app look frozen. Hide them for the
-                // duration of the panel, then restore.
-                overlays.values.forEach { $0.close() }
-                ScreenshotComposer.save(image)
-                overlays.values.forEach { $0.show() }
-                let mouse = NSEvent.mouseLocation
-                let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
-                if let target { overlays[target.displayID]?.makeKey() }
-                renderAll()
-            }
+            exportScreenshot(toClipboard: false)
         case .copyScreenshot:
-            if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
-                ScreenshotComposer.copy(image)
-            }
+            exportScreenshot(toClipboard: true)
         case .playExpirySound:
             if let sound = NSSound(named: "Glass") {
                 sound.play()
@@ -543,20 +530,68 @@ final class SessionCoordinator {
         }
     }
 
-    /// The overlay for the screen being annotated: the zoom screen when
-    /// drawing on a frozen zoom, else the screen under the mouse.
-    private func activeOverlayView() -> NSView? {
+    /// The screen being annotated: the zoom screen when drawing on a frozen
+    /// zoom, else the screen under the mouse.
+    private func activeAnnotationScreen() -> NSScreen? {
         let zoomScreenFrame: CGRect? = switch machine.state {
         case .draw(let ctx): ctx.zoom?.screen
         case .type(let ctx, _): ctx.zoom?.screen
         default: nil
         }
-        let screen: NSScreen? = if let zoomScreenFrame {
-            NSScreen.screens.first { $0.frame == zoomScreenFrame }
-        } else {
-            NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main
+        if let zoomScreenFrame {
+            return NSScreen.screens.first { $0.frame == zoomScreenFrame }
         }
-        guard let screen else { return nil }
+        return NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main
+    }
+
+    private func activeOverlayView() -> NSView? {
+        guard let screen = activeAnnotationScreen() else { return nil }
         return overlays[screen.displayID]?.compositingView
+    }
+
+    /// ⌘S/⌘C: capture the display as the user sees it (desktop or frozen
+    /// zoom or board, WITH annotations — overlays are sharingType .readOnly).
+    /// Falls back to compositing just the overlay view when screen capture
+    /// is unavailable (no Screen Recording permission).
+    private func exportScreenshot(toClipboard: Bool) {
+        guard let screen = activeAnnotationScreen() else { return }
+        let displayID = screen.displayID
+        let screenSize = screen.frame.size
+
+        if permissions.hasScreenRecordingPermission() {
+            Task { @MainActor in
+                let result = await self.snapshotter.captureDisplay(displayID)
+                let image: NSImage? = switch result {
+                case .success(let cg): NSImage(cgImage: cg, size: screenSize)
+                case .failure: self.overlayFallbackImage()
+                }
+                guard let image else { return }
+                self.deliverScreenshot(image, toClipboard: toClipboard)
+            }
+        } else if let image = overlayFallbackImage() {
+            deliverScreenshot(image, toClipboard: toClipboard)
+        }
+    }
+
+    private func overlayFallbackImage() -> NSImage? {
+        guard let view = activeOverlayView() else { return nil }
+        return ScreenshotComposer.image(of: view)
+    }
+
+    private func deliverScreenshot(_ image: NSImage, toClipboard: Bool) {
+        if toClipboard {
+            ScreenshotComposer.copy(image)
+            return
+        }
+        // NSSavePanel.runModal() would appear behind our .screenSaver-level
+        // overlay windows, making the app look frozen. Hide them for the
+        // duration of the panel, then restore.
+        overlays.values.forEach { $0.close() }
+        ScreenshotComposer.save(image)
+        overlays.values.forEach { $0.show() }
+        let mouse = NSEvent.mouseLocation
+        let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
+        if let target { overlays[target.displayID]?.makeKey() }
+        renderAll()
     }
 }

@@ -322,7 +322,7 @@ public struct SessionStateMachine: Sendable {
             }
             state = .idle
             return [.dismissOverlays]
-        case .hotkey(.toggleZoom, _, _), .breakRequested:
+        case .hotkey(.toggleZoom, _, _), .hotkey(.toggleLiveZoom, _, _), .breakRequested:
             state = .idle
             return [.dismissOverlays]
         default:

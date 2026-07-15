@@ -602,6 +602,22 @@ struct SessionLiveZoomTests {
         #expect(d.handle(.liveFrameFrozen).isEmpty)
     }
 
+    @Test func liveZoomHotkeyDuringDrawExitsToIdle() {
+        var m = drawingMachine()
+        #expect(m.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen)) == [.dismissOverlays])
+        #expect(m.state == .idle)
+    }
+
+    @Test func liveZoomHotkeyDuringTypeCommitsAndExits() {
+        var m = drawingMachine()
+        m.handle(.keyCommand(.enterType))
+        m.handle(.leftMouseDown(.zero))
+        m.handle(.textInput("x"))
+        let fx = m.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen))
+        #expect(fx == [.dismissOverlays])
+        #expect(m.state == .idle)
+    }
+
     @Test func liveZoomHotkeyDuringOtherModesExitsToIdle() {
         var z = zoomedMachine()
         #expect(z.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen)) == [.dismissOverlays])

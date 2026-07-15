@@ -385,6 +385,9 @@ final class SessionCoordinator {
             let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
             if let target { self.overlays[target.displayID]?.makeKey() }
             self.renderAll()
+            // The user may have toggled recording off (⌃5) while the
+            // permission prompt was up — machine.isRecording is the truth.
+            guard self.machine.isRecording else { return }
             self.beginRecording(displayID: displayID, recording: recording)
         }
     }

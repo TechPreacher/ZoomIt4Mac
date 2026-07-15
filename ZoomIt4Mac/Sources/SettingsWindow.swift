@@ -112,6 +112,8 @@ struct SettingsView: View {
                     )
                     Text(String(format: "%.1f×", model.settings.defaultZoomLevel))
                         .monospacedDigit()
+                        .fixedSize()
+                        .frame(width: 44, alignment: .trailing)
                 }
             }
             Section("Pen") {
@@ -131,7 +133,10 @@ struct SettingsView: View {
                         ),
                         in: 1...20, step: 1
                     )
-                    Text("\(Int(model.settings.penWidth)) pt").monospacedDigit()
+                    Text("\(Int(model.settings.penWidth)) pt")
+                        .monospacedDigit()
+                        .fixedSize()
+                        .frame(width: 44, alignment: .trailing)
                 }
             }
             Section {

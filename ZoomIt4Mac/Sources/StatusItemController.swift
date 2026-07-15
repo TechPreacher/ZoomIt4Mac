@@ -5,18 +5,21 @@ final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let onZoom: () -> Void
     private let onDraw: () -> Void
+    private let onBreak: () -> Void
     private let onShortcuts: () -> Void
     private let onSettings: () -> Void
 
     init(
         onZoom: @escaping () -> Void,
         onDraw: @escaping () -> Void,
+        onBreak: @escaping () -> Void,
         onShortcuts: @escaping () -> Void,
         onSettings: @escaping () -> Void
     ) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         self.onZoom = onZoom
         self.onDraw = onDraw
+        self.onBreak = onBreak
         self.onShortcuts = onShortcuts
         self.onSettings = onSettings
         super.init()
@@ -29,6 +32,7 @@ final class StatusItemController: NSObject {
         let menu = NSMenu()
         menu.addItem(makeItem("Zoom", action: #selector(zoomTapped), key: "1"))
         menu.addItem(makeItem("Draw", action: #selector(drawTapped), key: "2"))
+        menu.addItem(makeItem("Break Timer", action: #selector(breakTapped), key: "3"))
         menu.addItem(.separator())
         menu.addItem(makeItem("Keyboard Shortcuts…", action: #selector(shortcutsTapped), key: ""))
         menu.addItem(makeItem("Settings…", action: #selector(settingsTapped), key: ","))
@@ -51,6 +55,7 @@ final class StatusItemController: NSObject {
 
     @objc private func zoomTapped() { onZoom() }
     @objc private func drawTapped() { onDraw() }
+    @objc private func breakTapped() { onBreak() }
     @objc private func shortcutsTapped() { onShortcuts() }
     @objc private func settingsTapped() { onSettings() }
 

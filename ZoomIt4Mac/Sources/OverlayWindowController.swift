@@ -20,6 +20,10 @@ final class OverlayWindowController {
         didSet { contentView.snapshot = snapshot }
     }
 
+    var breakImage: CGImage? {
+        didSet { contentView.breakImage = breakImage }
+    }
+
     var compositingView: NSView { contentView }
 
     init(screen: NSScreen, coordinator: SessionCoordinator) {

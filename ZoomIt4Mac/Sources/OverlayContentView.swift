@@ -6,6 +6,10 @@ final class OverlayContentView: NSView {
         didSet { needsDisplay = true }
     }
 
+    var breakImage: CGImage? {
+        didSet { needsDisplay = true }
+    }
+
     private let screenFrame: CGRect
     private weak var coordinator: SessionCoordinator?
     private var state: SessionState = .idle
@@ -97,6 +101,11 @@ final class OverlayContentView: NSView {
         if case .idle = state { return }
         if case .capturing = state { return }
 
+        if case .breakTimer(let ctx) = state {
+            drawBreak(ctx, in: cg)
+            return
+        }
+
         cg.saveGState()
         if let ctx = zoomContextForThisScreen {
             // During zoom entry, ease the displayed level from 1× up to the
@@ -152,6 +161,76 @@ final class OverlayContentView: NSView {
                         color: drawContext.canvas.color, fontSize: tool.fontSize)
         }
         cg.restoreGState()
+    }
+
+    private func drawBreak(_ ctx: BreakContext, in cg: CGContext) {
+        let config = coordinator?.currentSettings().breakTimer ?? .default
+        let bounds = CGRect(origin: .zero, size: screenFrame.size)
+
+        // Background: black base, then faded snapshot or image when available.
+        cg.setFillColor(.black)
+        cg.fill(bounds)
+        if case .fadedDesktop = config.background, let snapshot, !ctx.usedFallbackBackground {
+            cg.interpolationQuality = .high
+            cg.draw(snapshot, in: bounds)
+            cg.setFillColor(CGColor(gray: 0, alpha: 0.7)) // fade
+            cg.fill(bounds)
+        } else if case .imageFile = config.background, let breakImage {
+            cg.interpolationQuality = .high
+            cg.draw(breakImage, in: aspectFillRect(for: breakImage, in: bounds))
+        }
+
+        // Timer text.
+        let now = CACurrentMediaTime()
+        let expired = ctx.timer.isExpired(at: now)
+        let text: String
+        let color: NSColor
+        if expired {
+            text = "-" + BreakTimer.format(ctx.timer.elapsedAfterExpiry(at: now))
+            color = .systemRed
+        } else {
+            text = BreakTimer.format(ctx.timer.remaining(at: now))
+            color = ctx.timer.isPaused ? .systemYellow : .white
+        }
+        let fontSize = screenFrame.height / 6
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold),
+            .foregroundColor: color.withAlphaComponent(config.opacity),
+        ]
+        let string = NSAttributedString(string: text, attributes: attributes)
+        string.draw(at: anchorOrigin(for: string.size(), position: config.position, in: bounds))
+    }
+
+    private func aspectFillRect(for image: CGImage, in bounds: CGRect) -> CGRect {
+        let imageAspect = CGFloat(image.width) / CGFloat(image.height)
+        let boundsAspect = bounds.width / bounds.height
+        var size = bounds.size
+        if imageAspect > boundsAspect {
+            size.width = bounds.height * imageAspect
+        } else {
+            size.height = bounds.width / imageAspect
+        }
+        return CGRect(
+            x: bounds.midX - size.width / 2,
+            y: bounds.midY - size.height / 2,
+            width: size.width, height: size.height
+        )
+    }
+
+    private func anchorOrigin(for size: CGSize, position: BreakPosition, in bounds: CGRect) -> CGPoint {
+        let margin = bounds.width * 0.05
+        // Note: view coordinates are bottom-left origin, so "top" = maxY.
+        let x: CGFloat = switch position {
+        case .topLeft, .left, .bottomLeft: margin
+        case .top, .center, .bottom: bounds.midX - size.width / 2
+        case .topRight, .right, .bottomRight: bounds.maxX - margin - size.width
+        }
+        let y: CGFloat = switch position {
+        case .bottomLeft, .bottom, .bottomRight: margin
+        case .left, .center, .right: bounds.midY - size.height / 2
+        case .topLeft, .top, .topRight: bounds.maxY - margin - size.height
+        }
+        return CGPoint(x: x, y: y)
     }
 
     private func nsColor(_ color: AnnotationColor) -> NSColor {

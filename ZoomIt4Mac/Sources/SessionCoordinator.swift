@@ -295,6 +295,8 @@ final class SessionCoordinator {
             } else {
                 NSSound.beep()
             }
+        case .startLiveStream, .stopLiveStream, .freezeLiveFrame:
+            break // Task 3
         }
     }
 

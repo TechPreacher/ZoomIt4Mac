@@ -28,7 +28,7 @@ Live Zoom (`⌃4`): magnified view where the screen keeps updating (video, demos
 - **Events:** `.liveFrameFrozen` (shell confirms the freeze frame is installed as the snapshot), `.liveStreamFailed(CaptureFailure)` (stream setup/runtime failure, reason attached — reuses the existing `CaptureFailure` enum).
 - **Effects:** `.startLiveStream`, `.stopLiveStream`, `.freezeLiveFrame`.
 - **Transitions:**
-  - idle + `hotkey(.toggleLiveZoom, mouse, screen)` → `.liveZoom(ZoomContext(level: settings.defaultZoomLevel, mouse, screen))`, effects `[.startLiveStream, .showOverlays, .render]`. No async gate — the overlay shows black until the first frame arrives (~1 frame at 30 fps).
+  - idle + `hotkey(.toggleLiveZoom, mouse, screen)` → `.liveZoom(ZoomContext(level: settings.defaultZoomLevel, mouse, screen))`, effects `[.showOverlays, .startLiveStream, .render]`. Overlays are shown before the stream starts so the stream filter can exclude the overlay windows. No async gate — the overlay shows black until the first frame arrives (~1 frame at 30 fps).
   - `.liveZoom` interactions mirror `.zoom`: `zoomChanged` (clamped 1×–8×), `mouseMoved` pan — both `[.render]`.
   - `.liveZoom` + `leftMouseDown` or `hotkey(.toggleDraw)` → state unchanged, effects `[.freezeLiveFrame]`. Shell converts the latest frame to CGImage, installs it as the display's snapshot, then sends `.liveFrameFrozen`.
   - `.liveZoom` + `.liveFrameFrozen` → `.draw(DrawContext(canvas: settings pen, zoom: ctx, fromLiveZoom: true))`, effects `[.stopLiveStream, .render]`.

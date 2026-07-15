@@ -523,3 +523,91 @@ struct SessionBreakRunTests {
         #expect(m.state == .idle)
     }
 }
+
+func liveZoomMachine(_ settings: Settings = .default) -> SessionStateMachine {
+    var m = machine(settings)
+    m.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen))
+    return m
+}
+
+struct SessionLiveZoomTests {
+    @Test func hotkeyEntersLiveZoomImmediately() {
+        var m = machine()
+        let fx = m.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen))
+        #expect(fx == [.showOverlays, .startLiveStream, .render])
+        #expect(m.state == .liveZoom(ZoomContext(level: 2.0, mouse: testMouse, screen: testScreen)))
+    }
+
+    @Test func defaultLiveZoomHotkeyIsCtrl4AndConflictFree() {
+        #expect(HotkeyConfiguration.default.combo(for: .toggleLiveZoom) == KeyCombo(keyCode: 21, modifiers: .control))
+        #expect(HotkeyConfiguration.default.conflictingCombos().isEmpty)
+    }
+
+    @Test func zoomAndPanMirrorFrozenZoom() {
+        var m = liveZoomMachine()
+        #expect(m.handle(.zoomChanged(factor: 2)) == [.render])
+        guard case .liveZoom(let ctx) = m.state else { Issue.record("expected liveZoom"); return }
+        #expect(ctx.level == 4.0)
+        #expect(m.handle(.mouseMoved(CGPoint(x: 5, y: 5))) == [.render])
+        guard case .liveZoom(let ctx2) = m.state else { Issue.record("expected liveZoom"); return }
+        #expect(ctx2.mouse == CGPoint(x: 5, y: 5))
+    }
+
+    @Test func zoomClampsAtBounds() {
+        var m = liveZoomMachine()
+        m.handle(.zoomChanged(factor: 100))
+        guard case .liveZoom(let ctx) = m.state else { Issue.record("expected liveZoom"); return }
+        #expect(ctx.level == 8.0)
+        m.handle(.zoomChanged(factor: 0.001))
+        guard case .liveZoom(let ctx2) = m.state else { Issue.record("expected liveZoom"); return }
+        #expect(ctx2.level == 1.0)
+    }
+
+    @Test func exitsStopStreamThenDismiss() {
+        for event in [SessionEvent.escape, .rightMouseAction,
+                      .hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen),
+                      .hotkey(.toggleZoom, mouse: testMouse, screen: testScreen),
+                      .hotkey(.toggleBreak, mouse: testMouse, screen: testScreen),
+                      .breakRequested(now: 1)] {
+            var m = liveZoomMachine()
+            let fx = m.handle(event)
+            #expect(fx == [.stopLiveStream, .dismissOverlays])
+            #expect(m.state == .idle)
+        }
+    }
+
+    @Test func displayChangeStopsStream() {
+        var m = liveZoomMachine()
+        let fx = m.handle(.displayConfigurationChanged)
+        #expect(fx == [.stopLiveStream, .dismissOverlays])
+        #expect(m.state == .idle)
+        var z = zoomedMachine() // non-live states keep the old shape
+        #expect(z.handle(.displayConfigurationChanged) == [.dismissOverlays])
+    }
+
+    @Test func streamFailureRoutesByReason() {
+        var m = liveZoomMachine()
+        #expect(m.handle(.liveStreamFailed(.permissionDenied)) == [.stopLiveStream, .dismissOverlays, .showPermissionGuidance])
+        #expect(m.state == .idle)
+        var m2 = liveZoomMachine()
+        #expect(m2.handle(.liveStreamFailed(.captureError)) == [.stopLiveStream, .dismissOverlays, .notifyCaptureFailure])
+        #expect(m2.state == .idle)
+    }
+
+    @Test func liveEventsIgnoredOutsideLiveZoom() {
+        var m = machine()
+        #expect(m.handle(.liveFrameFrozen).isEmpty)
+        #expect(m.handle(.liveStreamFailed(.captureError)).isEmpty)
+        var d = drawingMachine()
+        #expect(d.handle(.liveFrameFrozen).isEmpty)
+    }
+
+    @Test func liveZoomHotkeyDuringOtherModesExitsToIdle() {
+        var z = zoomedMachine()
+        #expect(z.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen)) == [.dismissOverlays])
+        #expect(z.state == .idle)
+        var b = breakMachine()
+        #expect(b.handle(.hotkey(.toggleLiveZoom, mouse: testMouse, screen: testScreen)) == [.dismissOverlays])
+        #expect(b.state == .idle)
+    }
+}

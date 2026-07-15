@@ -119,8 +119,10 @@ final class ScreenRecorderController: ScreenRecording {
 
                 try await stream.startCapture()
                 guard gen == self.generation else {
-                    Task { try? await stream.stopCapture() }
-                    await writer.cancel()
+                    Task {
+                        try? await stream.stopCapture()
+                        await writer.cancel()
+                    }
                     return
                 }
                 if let micSession {
@@ -160,9 +162,11 @@ final class ScreenRecorderController: ScreenRecording {
             if let mic {
                 // AVCaptureSession isn't Sendable on this SDK; safe here
                 // because `mic` is a local capture of the outgoing session,
-                // already detached from `self.micSession` above.
-                nonisolated(unsafe) let mic = mic
-                Task.detached { mic.stopRunning() }
+                // already detached from `self.micSession` above. Awaited so
+                // the mic queue is fully drained before the writer finalizes
+                // below (otherwise a late mic append can race markAsFinished).
+                nonisolated(unsafe) let session = mic
+                await Task.detached { session.stopRunning() }.value
             }
             try? await stream?.stopCapture()
             let url = await writer?.finish()
@@ -245,9 +249,15 @@ private final class RecordingWriter: @unchecked Sendable {
             writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
             sessionStarted = true
         }
+        // Append happens inside the lock so it can never land after
+        // finish()/cancel() flip `cancelled` and call markAsFinished()/
+        // cancelWriting() on the inputs — that ordering is what avoids the
+        // NSInternalInconsistencyException from appending to a finished
+        // input. Three producer queues at 30fps + audio make the resulting
+        // lock contention negligible.
         let ready = sessionStarted && !cancelled && videoInput.isReadyForMoreMediaData
-        lock.unlock()
         if ready { videoInput.append(sampleBuffer) }
+        lock.unlock()
     }
 
     func appendSystemAudio(_ sampleBuffer: CMSampleBuffer) {
@@ -260,9 +270,11 @@ private final class RecordingWriter: @unchecked Sendable {
 
     private func append(_ sampleBuffer: CMSampleBuffer, to input: AVAssetWriterInput?) {
         lock.lock()
+        // See appendVideo(_:) above: append stays inside the lock so it's
+        // fully serialized against finish()/cancel()'s state flip.
         let ready = sessionStarted && !cancelled && (input?.isReadyForMoreMediaData ?? false)
-        lock.unlock()
         if ready { input?.append(sampleBuffer) }
+        lock.unlock()
     }
 
     /// Finalize; returns the URL when anything was written, else deletes the
@@ -270,38 +282,48 @@ private final class RecordingWriter: @unchecked Sendable {
     func finish() async -> URL? {
         // NSLock.lock()/unlock() are unavailable from async contexts on the
         // newer SDK (no suspension may occur while holding the lock); the
-        // mutation is isolated in this synchronous helper instead.
-        let hadContent = markCancelledAndCheckContent()
-        guard hadContent, writer.status == .writing else {
-            writer.cancelWriting()
+        // mutation is isolated in this synchronous helper instead. Flipping
+        // `cancelled` and calling markAsFinished()/cancelWriting() happen
+        // under the same lock as the appends above, so any in-flight append
+        // either completed before this runs or observes `cancelled` and is
+        // skipped — never both.
+        let hadContent = finalizeInputsLocked()
+        guard hadContent else {
             try? FileManager.default.removeItem(at: url)
             return nil
         }
-        videoInput.markAsFinished()
-        systemAudioInput?.markAsFinished()
-        micInput?.markAsFinished()
         await writer.finishWriting()
         return url
     }
 
     func cancel() async {
-        markCancelled()
-        writer.cancelWriting()
+        // NSLock.lock()/unlock() are unavailable from async contexts (see
+        // finish() above); the flip + cancelWriting() happen together in
+        // this synchronous helper so they stay serialized against appends.
+        cancelInputsLocked()
         try? FileManager.default.removeItem(at: url)
     }
 
-    private func markCancelledAndCheckContent() -> Bool {
+    private func cancelInputsLocked() {
         lock.lock()
         defer { lock.unlock() }
-        let hadContent = sessionStarted && !cancelled
         cancelled = true
-        return hadContent
+        writer.cancelWriting()
     }
 
-    private func markCancelled() {
+    private func finalizeInputsLocked() -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        let hadContent = sessionStarted && !cancelled && writer.status == .writing
         cancelled = true
+        if hadContent {
+            videoInput.markAsFinished()
+            systemAudioInput?.markAsFinished()
+            micInput?.markAsFinished()
+        } else {
+            writer.cancelWriting()
+        }
+        return hadContent
     }
 }
 

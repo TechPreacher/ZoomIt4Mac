@@ -256,8 +256,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        // Grouped Form scrolls its content; let the window control the height
+        // so the settings fit on small screens and stay vertically resizable.
         .frame(width: 420)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(minHeight: 300, maxHeight: .infinity)
     }
 
     private func hotkeyRow(_ title: String, action: HotkeyAction) -> some View {
@@ -294,13 +296,19 @@ final class SettingsWindowController {
             let model = SettingsModel(store: store, onApply: onApply)
             self.model = model
             let view = SettingsView(model: model)
+            // Open as tall as the screen comfortably allows (capped at 720pt);
+            // the grouped Form scrolls when content exceeds the window height.
+            let available = (NSScreen.main?.visibleFrame.height ?? 800) - 80
+            let height = min(720, available)
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 420, height: 400),
-                styleMask: [.titled, .closable],
+                contentRect: NSRect(x: 0, y: 0, width: 420, height: height),
+                styleMask: [.titled, .closable, .resizable],
                 backing: .buffered,
                 defer: false
             )
             w.title = "ZoomIt4Mac Settings"
+            w.contentMinSize = NSSize(width: 420, height: 300)
+            w.contentMaxSize = NSSize(width: 420, height: CGFloat.greatestFiniteMagnitude)
             w.contentView = NSHostingView(rootView: view)
             w.isReleasedWhenClosed = false
             w.center()

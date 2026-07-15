@@ -55,6 +55,7 @@ input (hotkeys/keys/mouse/timers) → SessionCoordinator.send(event)
 - Never present a modal (save panel, alert, permission prompt) while `.screenSaver`-level overlays are up — hide/dismiss first, or defer the prompt past the current effect batch.
 - LaunchServices caches app icons per bundle path; About panel icon is set explicitly at launch for this reason.
 - CI runs an older Xcode/SDK than local: SDK types may lack Sendable annotations there (`@preconcurrency import ScreenCaptureKit`, `nonisolated(unsafe)` IOSurface hop). Watch PR CI after concurrency-adjacent changes.
+- Hardened runtime **silently auto-denies** protected devices without the matching entitlement — no TCC prompt, no Privacy-pane entry, `requestAccess` just returns false. The usage string alone is NOT enough: microphone needs `com.apple.security.device.audio-input` (declared in project.yml's `entitlements:` block; camera would need its equivalent).
 
 ## Testing expectations
 

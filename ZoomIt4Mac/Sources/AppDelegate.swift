@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItemController: StatusItemController?
     private var hotkeyRegistrar: HotkeyRegistrar?
     private var settingsWindowController: SettingsWindowController?
+    private var shortcutsWindowController: ShortcutsWindowController?
     private let settingsStore = SettingsStore(persistence: UserDefaults.standard)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -32,9 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         settingsWindowController = settingsWindow
 
+        let shortcutsWindow = ShortcutsWindowController(store: settingsStore)
+        shortcutsWindowController = shortcutsWindow
+
         statusItemController = StatusItemController(
             onZoom: { coordinator.trigger(.toggleZoom) },
             onDraw: { coordinator.trigger(.toggleDraw) },
+            onShortcuts: { shortcutsWindow.show() },
             onSettings: { settingsWindow.show() }
         )
 

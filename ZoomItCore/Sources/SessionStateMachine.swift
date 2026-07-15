@@ -27,12 +27,30 @@ public enum CaptureFailure: Error, Equatable, Sendable {
     case permissionDenied, captureError
 }
 
+public enum CaptureTarget: Equatable, Sendable {
+    case zoom(mouse: CGPoint, screen: CGRect)
+    case breakTimer(now: TimeInterval)
+}
+
+public struct BreakContext: Equatable, Sendable {
+    public var timer: BreakTimer
+    public var soundPlayed: Bool
+    public var usedFallbackBackground: Bool
+
+    public init(timer: BreakTimer, soundPlayed: Bool = false, usedFallbackBackground: Bool = false) {
+        self.timer = timer
+        self.soundPlayed = soundPlayed
+        self.usedFallbackBackground = usedFallbackBackground
+    }
+}
+
 public enum SessionState: Equatable, Sendable {
     case idle
-    case capturing(mouse: CGPoint, screen: CGRect)
+    case capturing(CaptureTarget)
     case zoom(ZoomContext)
     case draw(DrawContext)
     case type(DrawContext, TypeTool)
+    case breakTimer(BreakContext)
 }
 
 public enum KeyCommand: Equatable, Sendable {
@@ -58,6 +76,7 @@ public enum SessionEvent: Equatable, Sendable {
     case deleteBackward
     case displayConfigurationChanged
     case settingsChanged(Settings)
+    case breakRequested(now: TimeInterval)
 }
 
 public enum SessionEffect: Equatable, Sendable {
@@ -95,14 +114,16 @@ public struct SessionStateMachine: Sendable {
         switch state {
         case .idle:
             return handleIdle(event)
-        case .capturing(let mouse, let screen):
-            return handleCapturing(event, mouse: mouse, screen: screen)
+        case .capturing(let target):
+            return handleCapturing(event, target: target)
         case .zoom(let ctx):
             return handleZoom(event, ctx)
         case .draw(let ctx):
             return handleDraw(event, ctx)
         case .type(let ctx, let tool):
             return handleType(event, ctx, tool)
+        case .breakTimer(let ctx):
+            return handleBreak(event, ctx)
         }
     }
 
@@ -113,30 +134,56 @@ public struct SessionStateMachine: Sendable {
     private mutating func handleIdle(_ event: SessionEvent) -> [SessionEffect] {
         switch event {
         case .hotkey(.toggleZoom, let mouse, let screen):
-            state = .capturing(mouse: mouse, screen: screen)
+            state = .capturing(.zoom(mouse: mouse, screen: screen))
             return [.captureScreens]
         case .hotkey(.toggleDraw, _, _):
             state = .draw(DrawContext(canvas: newCanvas(), zoom: nil))
             return [.showOverlays, .render]
+        case .breakRequested(let now):
+            if case .fadedDesktop = settings.breakTimer.background {
+                state = .capturing(.breakTimer(now: now))
+                return [.captureScreens]
+            }
+            return enterBreak(now: now, usedFallback: false)
         default:
             return []
         }
     }
 
-    private mutating func handleCapturing(_ event: SessionEvent, mouse: CGPoint, screen: CGRect) -> [SessionEffect] {
-        switch event {
-        case .captureCompleted:
+    private mutating func enterBreak(now: TimeInterval, usedFallback: Bool) -> [SessionEffect] {
+        let timer = BreakTimer(duration: settings.breakTimer.duration, startedAt: now)
+        state = .breakTimer(BreakContext(timer: timer, usedFallbackBackground: usedFallback))
+        return [.showOverlays, .render]
+    }
+
+    private mutating func handleCapturing(_ event: SessionEvent, target: CaptureTarget) -> [SessionEffect] {
+        switch (event, target) {
+        case (.captureCompleted, .zoom(let mouse, let screen)):
             state = .zoom(ZoomContext(level: settings.defaultZoomLevel, mouse: mouse, screen: screen))
             return [.showOverlays, .render]
-        case .captureFailed(.permissionDenied):
+        case (.captureCompleted, .breakTimer(let now)):
+            return enterBreak(now: now, usedFallback: false)
+        case (.captureFailed(.permissionDenied), .zoom):
             state = .idle
             return [.showPermissionGuidance]
-        case .captureFailed(.captureError):
+        case (.captureFailed(.captureError), .zoom):
             state = .idle
             return [.notifyCaptureFailure]
-        case .escape:
+        case (.captureFailed, .breakTimer(let now)):
+            return enterBreak(now: now, usedFallback: true)
+        case (.escape, _):
             state = .idle
             return []
+        default:
+            return []
+        }
+    }
+
+    private mutating func handleBreak(_ event: SessionEvent, _ ctx: BreakContext) -> [SessionEffect] {
+        switch event {
+        case .escape, .rightMouseAction, .breakRequested, .hotkey:
+            state = .idle
+            return [.dismissOverlays]
         default:
             return []
         }
@@ -145,7 +192,7 @@ public struct SessionStateMachine: Sendable {
     private mutating func handleZoom(_ event: SessionEvent, _ ctx: ZoomContext) -> [SessionEffect] {
         var ctx = ctx
         switch event {
-        case .escape, .rightMouseAction, .hotkey(.toggleZoom, _, _):
+        case .escape, .rightMouseAction, .hotkey(.toggleZoom, _, _), .breakRequested:
             state = .idle
             return [.dismissOverlays]
         case .zoomChanged(let factor):
@@ -195,7 +242,7 @@ public struct SessionStateMachine: Sendable {
             }
             state = .idle
             return [.dismissOverlays]
-        case .hotkey(.toggleZoom, _, _):
+        case .hotkey(.toggleZoom, _, _), .breakRequested:
             state = .idle
             return [.dismissOverlays]
         default:
@@ -231,7 +278,7 @@ public struct SessionStateMachine: Sendable {
             commitRun()
             state = .draw(ctx)
             return [.render]
-        case .hotkey:
+        case .hotkey, .breakRequested:
             commitRun()
             state = .idle
             return [.dismissOverlays]

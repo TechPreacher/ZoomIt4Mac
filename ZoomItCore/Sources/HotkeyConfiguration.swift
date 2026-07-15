@@ -32,7 +32,7 @@ public struct KeyCombo: Codable, Equatable, Hashable, Sendable {
 }
 
 public enum HotkeyAction: String, Codable, CaseIterable, Hashable, Sendable {
-    case toggleZoom, toggleDraw
+    case toggleZoom, toggleDraw, toggleBreak
 }
 
 public struct HotkeyConfiguration: Equatable, Sendable {
@@ -41,6 +41,7 @@ public struct HotkeyConfiguration: Equatable, Sendable {
     public static let `default` = HotkeyConfiguration(bindings: [
         .toggleZoom: KeyCombo(keyCode: 18, modifiers: .control), // ⌃1
         .toggleDraw: KeyCombo(keyCode: 19, modifiers: .control), // ⌃2
+        .toggleBreak: KeyCombo(keyCode: 20, modifiers: .control), // ⌃3
     ])
 
     public init(bindings: [HotkeyAction: KeyCombo]) {

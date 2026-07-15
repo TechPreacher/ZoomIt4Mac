@@ -22,7 +22,7 @@ struct SessionLifecycleTests {
         var m = machine()
         let fx = m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen))
         #expect(fx == [.captureScreens])
-        #expect(m.state == .capturing(mouse: testMouse, screen: testScreen))
+        #expect(m.state == .capturing(.zoom(mouse: testMouse, screen: testScreen)))
     }
 
     @Test func captureCompletedEntersZoomAtDefaultLevel() {
@@ -337,5 +337,103 @@ struct SessionTypeTests {
         let fx = m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen))
         #expect(fx == [.dismissOverlays])
         #expect(m.state == .idle)
+    }
+}
+
+func breakMachine(_ settings: Settings = .default) -> SessionStateMachine {
+    var m = machine(settings)
+    m.handle(.breakRequested(now: 1000))
+    return m
+}
+
+extension SessionStateMachine {
+    var breakContext: BreakContext? {
+        if case .breakTimer(let ctx) = state { return ctx }
+        return nil
+    }
+}
+
+struct SessionBreakEntryTests {
+    @Test func breakRequestedEntersTimerWithSolidBackground() {
+        var m = machine() // default background: solidBlack
+        let fx = m.handle(.breakRequested(now: 1000))
+        #expect(fx == [.showOverlays, .render])
+        guard let ctx = m.breakContext else { Issue.record("expected break"); return }
+        #expect(ctx.timer.remaining(at: 1000) == 600)
+        #expect(!ctx.usedFallbackBackground)
+        #expect(!ctx.soundPlayed)
+    }
+
+    @Test func fadedDesktopEntersCaptureFirst() {
+        var settings = Settings.default
+        settings.breakTimer.background = .fadedDesktop
+        var m = machine(settings)
+        let fx = m.handle(.breakRequested(now: 1000))
+        #expect(fx == [.captureScreens])
+        #expect(m.state == .capturing(.breakTimer(now: 1000)))
+        let fx2 = m.handle(.captureCompleted)
+        #expect(fx2 == [.showOverlays, .render])
+        #expect(m.breakContext?.usedFallbackBackground == false)
+    }
+
+    @Test func captureFailureFallsBackToSolidAndStillStarts() {
+        var settings = Settings.default
+        settings.breakTimer.background = .fadedDesktop
+        for failure in [CaptureFailure.permissionDenied, .captureError] {
+            var m = machine(settings)
+            m.handle(.breakRequested(now: 1000))
+            let fx = m.handle(.captureFailed(failure))
+            #expect(fx == [.showOverlays, .render]) // no permission guidance mid-break
+            guard let ctx = m.breakContext else { Issue.record("expected break"); return }
+            #expect(ctx.usedFallbackBackground)
+            #expect(ctx.timer.remaining(at: 1000) == 600)
+        }
+    }
+
+    @Test func zoomCaptureFailureStillShowsGuidance() {
+        var m = machine()
+        m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.captureFailed(.permissionDenied)) == [.showPermissionGuidance])
+        #expect(m.state == .idle)
+    }
+
+    @Test func exitsOnEscapeRightClickAndToggle() {
+        for event in [SessionEvent.escape, .rightMouseAction, .breakRequested(now: 2000)] {
+            var m = breakMachine()
+            let fx = m.handle(event)
+            #expect(fx == [.dismissOverlays])
+            #expect(m.state == .idle)
+        }
+    }
+
+    @Test func otherHotkeysExitBreakToIdle() {
+        for action in [HotkeyAction.toggleZoom, .toggleDraw] {
+            var m = breakMachine()
+            let fx = m.handle(.hotkey(action, mouse: testMouse, screen: testScreen))
+            #expect(fx == [.dismissOverlays])
+            #expect(m.state == .idle)
+        }
+    }
+
+    @Test func breakRequestedDuringZoomExitsToIdle() {
+        var m = zoomedMachine()
+        let fx = m.handle(.breakRequested(now: 1000))
+        #expect(fx == [.dismissOverlays])
+        #expect(m.state == .idle)
+    }
+
+    @Test func breakRequestedDuringTypeCommitsRunThenExits() {
+        var m = drawingMachine()
+        m.handle(.keyCommand(.enterType))
+        m.handle(.leftMouseDown(.zero))
+        m.handle(.textInput("x"))
+        let fx = m.handle(.breakRequested(now: 1000))
+        #expect(fx == [.dismissOverlays])
+        #expect(m.state == .idle)
+    }
+
+    @Test func defaultBreakHotkeyIsCtrl3() {
+        #expect(HotkeyConfiguration.default.combo(for: .toggleBreak) == KeyCombo(keyCode: 20, modifiers: .control))
+        #expect(HotkeyConfiguration.default.conflictingCombos().isEmpty)
     }
 }

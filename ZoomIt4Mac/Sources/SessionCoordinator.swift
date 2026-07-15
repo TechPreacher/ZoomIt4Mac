@@ -31,6 +31,10 @@ final class SessionCoordinator {
     // MARK: - Event entry points
 
     func trigger(_ action: HotkeyAction) {
+        if action == .toggleBreak {
+            send(.breakRequested(now: CACurrentMediaTime()))
+            return
+        }
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screen(containing: mouse)?.frame
             ?? NSScreen.main?.frame ?? .zero

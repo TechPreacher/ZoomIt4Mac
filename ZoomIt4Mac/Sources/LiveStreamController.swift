@@ -131,7 +131,10 @@ private final class LiveFrameOutput: NSObject, SCStreamOutput, SCStreamDelegate,
               let pixelBuffer = sampleBuffer.imageBuffer,
               let surfaceRef = CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue()
         else { return }
-        let surface = unsafeBitCast(surfaceRef, to: IOSurface.self)
+        // IOSurface is not Sendable in the macOS 15 SDK (Xcode 16.x, CI),
+        // but handing it across threads is safe here: IOSurface is a
+        // cross-process-shareable GPU object and the main actor only reads it.
+        nonisolated(unsafe) let surface = unsafeBitCast(surfaceRef, to: IOSurface.self)
         Task { @MainActor [handler] in
             handler(surface)
         }

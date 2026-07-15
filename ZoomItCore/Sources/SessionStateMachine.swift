@@ -32,6 +32,7 @@ public enum CaptureFailure: Error, Equatable, Sendable {
 public enum CaptureTarget: Equatable, Sendable {
     case zoom(mouse: CGPoint, screen: CGRect)
     case breakTimer(now: TimeInterval)
+    case snip
 }
 
 public struct BreakContext: Equatable, Sendable {
@@ -46,6 +47,18 @@ public struct BreakContext: Equatable, Sendable {
     }
 }
 
+public struct SnipContext: Equatable, Sendable {
+    /// Selection drag endpoints in global screen points (== image space at
+    /// 1×). Nil until the user presses the mouse button.
+    public var anchor: CGPoint?
+    public var current: CGPoint?
+
+    public init(anchor: CGPoint? = nil, current: CGPoint? = nil) {
+        self.anchor = anchor
+        self.current = current
+    }
+}
+
 public enum SessionState: Equatable, Sendable {
     case idle
     case capturing(CaptureTarget)
@@ -54,6 +67,7 @@ public enum SessionState: Equatable, Sendable {
     case draw(DrawContext)
     case type(DrawContext, TypeTool)
     case breakTimer(BreakContext)
+    case snip(SnipContext)
 }
 
 public enum KeyCommand: Equatable, Sendable {
@@ -69,6 +83,7 @@ public enum SessionEvent: Equatable, Sendable {
     case captureFailed(CaptureFailure)
     case escape
     case leftMouseDown(CGPoint)
+    case leftMouseUp(CGPoint, optionHeld: Bool)
     case rightMouseAction
     case zoomChanged(factor: CGFloat)
     case mouseMoved(CGPoint)
@@ -98,6 +113,7 @@ public enum SessionEffect: Equatable, Sendable {
     case notifyCaptureFailure
     case saveScreenshot
     case copyScreenshot
+    case exportSnip(selection: CGRect, alsoSave: Bool)
     case playExpirySound
     case startLiveStream
     case stopLiveStream
@@ -190,6 +206,8 @@ public struct SessionStateMachine: Sendable {
             return handleType(event, ctx, tool)
         case .breakTimer(let ctx):
             return handleBreak(event, ctx)
+        case .snip(let ctx):
+            return handleSnip(event, ctx)
         }
     }
 
@@ -214,6 +232,9 @@ public struct SessionStateMachine: Sendable {
                 return [.captureScreens]
             }
             return enterBreak(now: now, usedFallback: false)
+        case .hotkey(.snip, _, _):
+            state = .capturing(.snip)
+            return [.captureScreens]
         default:
             return []
         }
@@ -240,9 +261,51 @@ public struct SessionStateMachine: Sendable {
             return [.notifyCaptureFailure]
         case (.captureFailed, .breakTimer(let now)):
             return enterBreak(now: now, usedFallback: true)
+        case (.captureCompleted, .snip):
+            state = .snip(SnipContext())
+            return [.showOverlays, .render]
+        case (.captureFailed(.permissionDenied), .snip):
+            state = .idle
+            return [.showPermissionGuidance]
+        case (.captureFailed(.captureError), .snip):
+            state = .idle
+            return [.notifyCaptureFailure]
         case (.escape, _):
             state = .idle
             return []
+        default:
+            return []
+        }
+    }
+
+    private mutating func handleSnip(_ event: SessionEvent, _ ctx: SnipContext) -> [SessionEffect] {
+        var ctx = ctx
+        switch event {
+        case .leftMouseDown(let point):
+            ctx.anchor = point
+            ctx.current = point
+            state = .snip(ctx)
+            return [.render]
+        case .mouseMoved(let point):
+            guard ctx.anchor != nil else { return [] }
+            ctx.current = point
+            state = .snip(ctx)
+            return [.render]
+        case .leftMouseUp(let point, let optionHeld):
+            guard let anchor = ctx.anchor else { return [] }
+            let selection = SnipGeometry.normalized(anchor: anchor, current: point)
+            guard SnipGeometry.isValidSelection(selection) else {
+                // Stray click / sub-minimum drag: clear and let the user retry.
+                state = .snip(SnipContext())
+                return [.render]
+            }
+            state = .idle
+            // Export first — dismissOverlays clears the snapshot store the
+            // crop reads from.
+            return [.exportSnip(selection: selection, alsoSave: optionHeld), .dismissOverlays]
+        case .escape, .rightMouseAction, .hotkey, .breakRequested:
+            state = .idle
+            return [.dismissOverlays]
         default:
             return []
         }
@@ -382,7 +445,7 @@ public struct SessionStateMachine: Sendable {
             }
             state = .idle
             return [.dismissOverlays]
-        case .hotkey(.toggleZoom, _, _), .hotkey(.toggleLiveZoom, _, _), .breakRequested:
+        case .hotkey(.toggleZoom, _, _), .hotkey(.toggleLiveZoom, _, _), .hotkey(.snip, _, _), .breakRequested:
             state = .idle
             return [.dismissOverlays]
         default:

@@ -8,6 +8,7 @@ final class StatusItemController: NSObject {
     private let onDraw: () -> Void
     private let onBreak: () -> Void
     private let onRecord: () -> Void
+    private let onSnip: () -> Void
     private let onShortcuts: () -> Void
     private let onSettings: () -> Void
     private var recordItem: NSMenuItem!
@@ -18,6 +19,7 @@ final class StatusItemController: NSObject {
         onDraw: @escaping () -> Void,
         onBreak: @escaping () -> Void,
         onRecord: @escaping () -> Void,
+        onSnip: @escaping () -> Void,
         onShortcuts: @escaping () -> Void,
         onSettings: @escaping () -> Void
     ) {
@@ -27,6 +29,7 @@ final class StatusItemController: NSObject {
         self.onDraw = onDraw
         self.onBreak = onBreak
         self.onRecord = onRecord
+        self.onSnip = onSnip
         self.onShortcuts = onShortcuts
         self.onSettings = onSettings
         super.init()
@@ -43,6 +46,7 @@ final class StatusItemController: NSObject {
         menu.addItem(makeItem("Break Timer", action: #selector(breakTapped), key: "3"))
         recordItem = makeItem("Start Recording", action: #selector(recordTapped), key: "5")
         menu.addItem(recordItem)
+        menu.addItem(makeItem("Snip", action: #selector(snipTapped), key: "6"))
         menu.addItem(.separator())
         menu.addItem(makeItem("Keyboard Shortcuts…", action: #selector(shortcutsTapped), key: ""))
         menu.addItem(makeItem("Settings…", action: #selector(settingsTapped), key: ","))
@@ -68,6 +72,7 @@ final class StatusItemController: NSObject {
     @objc private func drawTapped() { onDraw() }
     @objc private func breakTapped() { onBreak() }
     @objc private func recordTapped() { onRecord() }
+    @objc private func snipTapped() { onSnip() }
     @objc private func shortcutsTapped() { onShortcuts() }
     @objc private func settingsTapped() { onSettings() }
 

@@ -22,6 +22,7 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleDraw)), action: "Draw — annotate on screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleBreak)), action: "Break Timer — full-screen countdown"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleRecord)), action: "Recording — start/stop recording the screen"),
+            Shortcut(keys: comboLabel(hotkeys.combo(for: .snip)), action: "Snip — copy a screen region"),
         ]),
         ShortcutSection(title: "While zooming", shortcuts: [
             Shortcut(keys: "Scroll / Pinch / ↑ ↓", action: "Change zoom level (1×–8×)"),
@@ -34,6 +35,12 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: "Move mouse", action: "Pan"),
             Shortcut(keys: "Left click", action: "Freeze the frame and draw on it (Esc returns to live)"),
             Shortcut(keys: "Right click / Esc", action: "Exit live zoom"),
+        ]),
+        ShortcutSection(title: "While snipping", shortcuts: [
+            Shortcut(keys: "Drag", action: "Select the region"),
+            Shortcut(keys: "Release", action: "Copy the region to the clipboard"),
+            Shortcut(keys: "⌥ Release", action: "Copy and save as PNG"),
+            Shortcut(keys: "Right click / Esc", action: "Cancel"),
         ]),
         ShortcutSection(title: "While drawing", shortcuts: [
             Shortcut(keys: "Drag", action: "Freehand pen"),

@@ -11,10 +11,10 @@ enum ScreenshotComposer {
         return image
     }
 
-    static func save(_ image: NSImage) {
+    static func save(_ image: NSImage, suggestedName: String = "ZoomIt Annotation.png") {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = "ZoomIt Annotation.png"
+        panel.nameFieldStringValue = suggestedName
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url,
               let tiff = image.tiffRepresentation,

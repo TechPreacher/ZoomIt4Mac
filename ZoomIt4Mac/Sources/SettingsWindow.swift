@@ -144,6 +144,7 @@ struct SettingsView: View {
                 hotkeyRow("Draw", action: .toggleDraw)
                 hotkeyRow("Break Timer", action: .toggleBreak)
                 hotkeyRow("Recording", action: .toggleRecord)
+                hotkeyRow("Snip", action: .snip)
                 if !model.conflicts.isEmpty {
                     Text("Two actions share the same hotkey.")
                         .foregroundStyle(.red)

@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onDraw: { coordinator.trigger(.toggleDraw) },
             onBreak: { coordinator.trigger(.toggleBreak) },
             onRecord: { coordinator.trigger(.toggleRecord) },
+            onSnip: { coordinator.trigger(.snip) },
             onShortcuts: { shortcutsWindow.show() },
             onSettings: { settingsWindow.show() }
         )

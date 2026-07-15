@@ -143,6 +143,7 @@ struct SettingsView: View {
                 hotkeyRow("Live Zoom", action: .toggleLiveZoom)
                 hotkeyRow("Draw", action: .toggleDraw)
                 hotkeyRow("Break Timer", action: .toggleBreak)
+                hotkeyRow("Recording", action: .toggleRecord)
                 if !model.conflicts.isEmpty {
                     Text("Two actions share the same hotkey.")
                         .foregroundStyle(.red)
@@ -246,6 +247,19 @@ struct SettingsView: View {
                 Toggle("Play sound on expiry", isOn: Binding(
                     get: { model.settings.breakTimer.playSound },
                     set: { model.settings.breakTimer.playSound = $0; model.save() }
+                ))
+            }
+            Section("Recording") {
+                Toggle("Record microphone", isOn: Binding(
+                    get: { model.settings.recording.recordMicrophone },
+                    set: { model.settings.recording.recordMicrophone = $0; model.save() }
+                ))
+                Text("macOS asks for microphone access the first time a recording starts with this enabled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle("Record system audio", isOn: Binding(
+                    get: { model.settings.recording.recordSystemAudio },
+                    set: { model.settings.recording.recordSystemAudio = $0; model.save() }
                 ))
             }
             Section {

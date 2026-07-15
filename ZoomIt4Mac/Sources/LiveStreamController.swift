@@ -41,6 +41,12 @@ final class LiveStreamController: LiveStreaming {
                     }
                     return
                 }
+                // Overlay windows are created with sharingType = .none (see
+                // OverlayWindowController), so ScreenCaptureKit already omits them
+                // from the stream and they never appear in `content.windows` here —
+                // this exclusion list typically matches nothing. `sharingType` is the
+                // actual feedback-loop protection; keep it even if this filter looks
+                // redundant.
                 let excluded = content.windows.filter { excludedNumbers.contains($0.windowID) }
                 let filter = SCContentFilter(display: display, excludingWindows: excluded)
 
@@ -53,12 +59,18 @@ final class LiveStreamController: LiveStreaming {
                 config.showsCursor = true
                 config.pixelFormat = kCVPixelFormatType_32BGRA
 
-                let output = LiveFrameOutput { [weak self] surface in
-                    guard let self, gen == self.generation else { return }
-                    self.latestSurface = surface
-                    onFrame(surface)
-                }
-                let stream = SCStream(filter: filter, configuration: config, delegate: nil)
+                let output = LiveFrameOutput(
+                    handler: { [weak self] surface in
+                        guard let self, gen == self.generation else { return }
+                        self.latestSurface = surface
+                        onFrame(surface)
+                    },
+                    onStopped: { [weak self] in
+                        guard let self, gen == self.generation else { return }
+                        onError(.captureError)
+                    }
+                )
+                let stream = SCStream(filter: filter, configuration: config, delegate: output)
                 try stream.addStreamOutput(output, type: .screen, sampleHandlerQueue: output.queue)
                 try await stream.startCapture()
                 guard gen == self.generation else {
@@ -97,12 +109,17 @@ final class LiveStreamController: LiveStreaming {
 }
 
 /// Receives stream frames on a background queue and hops them to MainActor.
-private final class LiveFrameOutput: NSObject, SCStreamOutput, @unchecked Sendable {
+/// Also acts as the stream's delegate so mid-session stream death (permission
+/// revoked, SCK/WindowServer errors) is detected instead of silently freezing
+/// the view.
+private final class LiveFrameOutput: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     let queue = DispatchQueue(label: "com.corti.zoomit.live-frames")
     private let handler: @MainActor (IOSurface) -> Void
+    private let onStopped: @MainActor () -> Void
 
-    init(handler: @escaping @MainActor (IOSurface) -> Void) {
+    init(handler: @escaping @MainActor (IOSurface) -> Void, onStopped: @escaping @MainActor () -> Void) {
         self.handler = handler
+        self.onStopped = onStopped
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
@@ -114,6 +131,12 @@ private final class LiveFrameOutput: NSObject, SCStreamOutput, @unchecked Sendab
         let surface = unsafeBitCast(surfaceRef, to: IOSurface.self)
         Task { @MainActor [handler] in
             handler(surface)
+        }
+    }
+
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        Task { @MainActor [onStopped] in
+            onStopped()
         }
     }
 }

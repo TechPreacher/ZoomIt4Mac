@@ -345,6 +345,7 @@ final class SessionCoordinator {
             return
         }
         snapshots[screen.displayID] = image
+        overlays[screen.displayID]?.snapshot = image
         send(.liveFrameFrozen)
     }
 

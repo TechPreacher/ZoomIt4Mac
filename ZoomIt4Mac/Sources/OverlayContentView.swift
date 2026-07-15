@@ -52,6 +52,7 @@ final class OverlayContentView: NSView {
     private func zoomBearing(_ state: SessionState) -> Bool {
         switch state {
         case .zoom: return true
+        case .liveZoom: return true
         case .draw(let d): return d.zoom != nil
         case .type(let d, _): return d.zoom != nil
         default: return false

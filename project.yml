@@ -46,6 +46,12 @@ targets:
         NSPrincipalClass: NSApplication
         CFBundleIconFile: AppIcon
         NSMicrophoneUsageDescription: ZoomIt4Mac records microphone audio in screen recordings when enabled in Settings.
+    entitlements:
+      path: ZoomIt4Mac/ZoomIt4Mac.entitlements
+      properties:
+        # Hardened runtime auto-denies microphone access (no prompt, no TCC
+        # entry) without this entitlement.
+        com.apple.security.device.audio-input: true
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES

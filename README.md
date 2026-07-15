@@ -52,6 +52,14 @@ Menu bar app (`LSUIElement`) — no Dock icon.
 
 Zoom, Live Zoom, Snip, and Screen Recording require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required. Recording with the microphone enabled additionally asks for **Microphone** permission (optional — recordings proceed without it if denied).
 
+## Install
+
+```sh
+brew install TechPreacher/tap/zoomit4mac
+```
+
+Or grab the notarized zip from the [latest release](https://github.com/TechPreacher/ZoomIt4Mac/releases/latest) and drop `ZoomIt4Mac.app` into `/Applications`.
+
 ## Building
 
 Requires Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen):

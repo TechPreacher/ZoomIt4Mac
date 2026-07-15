@@ -82,6 +82,18 @@ Design and plan documents live under [`docs/`](docs/).
 
 `scripts/release.sh` archives, exports with Developer ID, notarizes, and staples a distributable zip (see the script header for one-time credential setup).
 
+Cutting a release:
+
+1. Bump `MARKETING_VERSION` (and `CURRENT_PROJECT_VERSION`) in `project.yml`, commit.
+2. `bash scripts/release.sh` → produces `build/ZoomIt4Mac-notarized.zip`; note the `shasum -a 256` of the zip.
+3. Tag and publish:
+   ```sh
+   git tag vX.Y.Z && git push origin main vX.Y.Z
+   cp build/ZoomIt4Mac-notarized.zip build/ZoomIt4Mac-X.Y.Z.zip
+   gh release create vX.Y.Z build/ZoomIt4Mac-X.Y.Z.zip --title "ZoomIt4Mac X.Y.Z" --notes "..."
+   ```
+4. Update `version` and `sha256` in [`TechPreacher/homebrew-tap`](https://github.com/TechPreacher/homebrew-tap)'s `Casks/zoomit4mac.rb`, push.
+
 ## Acknowledgements
 
 ZoomIt is a [Sysinternals](https://learn.microsoft.com/sysinternals/) tool by Mark Russinovich; ZoomIt and Sysinternals are trademarks of Microsoft Corporation. This project is an independent re-implementation for macOS and is not affiliated with or endorsed by Microsoft.

@@ -44,12 +44,10 @@ final class LiveStreamController: LiveStreaming {
                     }
                     return
                 }
-                // Overlay windows are created with sharingType = .none (see
-                // OverlayWindowController), so ScreenCaptureKit already omits them
-                // from the stream and they never appear in `content.windows` here —
-                // this exclusion list typically matches nothing. `sharingType` is the
-                // actual feedback-loop protection; keep it even if this filter looks
-                // redundant.
+                // Overlay windows are sharingType .readOnly (so screen recordings can
+                // capture annotations), which means they DO appear in shareable
+                // content — this explicit exclusion is the active feedback-loop
+                // protection for the live-zoom stream.
                 let excluded = content.windows.filter { excludedNumbers.contains($0.windowID) }
                 let filter = SCContentFilter(display: display, excludingWindows: excluded)
 

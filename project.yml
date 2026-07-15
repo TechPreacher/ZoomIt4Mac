@@ -45,6 +45,7 @@ targets:
         CFBundleDisplayName: ZoomIt4Mac
         NSPrincipalClass: NSApplication
         CFBundleIconFile: AppIcon
+        NSMicrophoneUsageDescription: ZoomIt4Mac records microphone audio in screen recordings when enabled in Settings.
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES

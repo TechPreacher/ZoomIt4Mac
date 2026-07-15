@@ -23,7 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let coordinator = SessionCoordinator(
             settings: settings,
             snapshotter: ScreenSnapshotter(),
-            permissions: PermissionCoordinator()
+            permissions: PermissionCoordinator(),
+            liveStream: LiveStreamController()
         )
         self.coordinator = coordinator
 

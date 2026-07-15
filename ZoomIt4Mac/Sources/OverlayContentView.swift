@@ -1,4 +1,5 @@
 import AppKit
+import IOSurface
 import ZoomItCore
 
 final class OverlayContentView: NSView {
@@ -37,6 +38,11 @@ final class OverlayContentView: NSView {
         self.state = state
         if zoomBearing(state) && !wasZoomed && zoomContextForThisScreen != nil {
             startZoomEntryAnimation()
+        }
+        if case .liveZoom(let ctx) = state, ctx.screen == screenFrame {
+            updateLiveTransform(ctx)
+        } else {
+            removeLiveLayers()
         }
         needsDisplay = true
         window?.invalidateCursorRects(for: self)
@@ -100,6 +106,7 @@ final class OverlayContentView: NSView {
 
         if case .idle = state { return }
         if case .capturing = state { return }
+        if case .liveZoom = state { return }
 
         if case .breakTimer(let ctx) = state {
             drawBreak(ctx, in: cg)
@@ -294,6 +301,58 @@ final class OverlayContentView: NSView {
             .foregroundColor: nsColor(color),
         ]
         NSAttributedString(string: text, attributes: attributes).draw(at: point)
+    }
+
+    // MARK: - Live zoom layer hosting
+
+    private var liveContainerLayer: CALayer?
+    private var liveFrameLayer: CALayer?
+
+    func pushLiveFrame(_ surface: IOSurface) {
+        ensureLiveLayers()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        liveFrameLayer?.contents = surface
+        CATransaction.commit()
+    }
+
+    private func ensureLiveLayers() {
+        guard liveContainerLayer == nil else { return }
+        wantsLayer = true
+        let container = CALayer()
+        container.anchorPoint = .zero
+        container.position = .zero
+        container.bounds = CGRect(origin: .zero, size: screenFrame.size)
+        let frameLayer = CALayer()
+        frameLayer.frame = CGRect(origin: .zero, size: screenFrame.size)
+        frameLayer.contentsGravity = .resize
+        container.addSublayer(frameLayer)
+        layer?.backgroundColor = .black
+        layer?.addSublayer(container)
+        liveContainerLayer = container
+        liveFrameLayer = frameLayer
+    }
+
+    private func removeLiveLayers() {
+        guard liveContainerLayer != nil else { return }
+        liveContainerLayer?.removeFromSuperlayer()
+        liveContainerLayer = nil
+        liveFrameLayer = nil
+        layer?.backgroundColor = .clear
+    }
+
+    private func updateLiveTransform(_ ctx: ZoomContext) {
+        ensureLiveLayers()
+        let visible = ZoomGeometry.visibleRect(mouse: ctx.mouse, screen: ctx.screen, level: ctx.level)
+        let visibleLocal = visible.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY)
+        let transform = CGAffineTransform(
+            a: ctx.level, b: 0, c: 0, d: ctx.level,
+            tx: -visibleLocal.minX * ctx.level, ty: -visibleLocal.minY * ctx.level
+        )
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        liveContainerLayer?.setAffineTransform(transform)
+        CATransaction.commit()
     }
 
     // MARK: - Input forwarding

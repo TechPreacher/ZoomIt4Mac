@@ -1,4 +1,5 @@
 import AppKit
+import IOSurface
 import ZoomItCore
 
 /// A borderless overlay window that can still become key/main, so keyboard
@@ -70,6 +71,12 @@ final class OverlayWindowController {
 
     func render(state: SessionState) {
         contentView.render(state: state)
+    }
+
+    var nsWindow: NSWindow { window }
+
+    func pushLiveFrame(_ surface: IOSurface) {
+        contentView.pushLiveFrame(surface)
     }
 
 }

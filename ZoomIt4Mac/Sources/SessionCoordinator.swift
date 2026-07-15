@@ -16,6 +16,7 @@ final class SessionCoordinator {
     private var machine: SessionStateMachine
     private let snapshotter: Snapshotting
     private let permissions: PermissionCoordinator
+    private let liveStream: LiveStreaming
     private var overlays: [CGDirectDisplayID: OverlayWindowController] = [:]
     private(set) var snapshots: [CGDirectDisplayID: CGImage] = [:]
     private var activeTracker: ShapeTracker?
@@ -26,10 +27,11 @@ final class SessionCoordinator {
 
     func currentSettings() -> Settings { machine.settings }
 
-    init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator) {
+    init(settings: Settings, snapshotter: Snapshotting, permissions: PermissionCoordinator, liveStream: LiveStreaming) {
         self.machine = SessionStateMachine(settings: settings)
         self.snapshotter = snapshotter
         self.permissions = permissions
+        self.liveStream = liveStream
     }
 
     // MARK: - Event entry points
@@ -109,13 +111,15 @@ final class SessionCoordinator {
             return
         }
 
-        if case .zoom = machine.state {
+        switch machine.state {
+        case .zoom, .liveZoom:
             switch event.keyCode {
             case 126: send(.zoomChanged(factor: 1.25)) // ↑
             case 125: send(.zoomChanged(factor: 0.8))  // ↓
             default: break
             }
             return
+        default: break
         }
 
         if case .draw = machine.state {
@@ -190,7 +194,7 @@ final class SessionCoordinator {
 
     func handleMouseDown(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
         switch machine.state {
-        case .zoom, .type:
+        case .zoom, .liveZoom, .type:
             // zoom: enters draw; type: moves caret (both via the state machine)
             send(.leftMouseDown(imageSpacePoint(for: global)))
         case .draw(let ctx):
@@ -228,7 +232,7 @@ final class SessionCoordinator {
     func handleScroll(deltaY: CGFloat, modifiers: NSEvent.ModifierFlags) {
         guard deltaY != 0 else { return }
         switch machine.state {
-        case .zoom:
+        case .zoom, .liveZoom:
             send(.zoomChanged(factor: deltaY > 0 ? 1.1 : 1 / 1.1))
         case .draw where modifiers.contains(.command):
             send(.penWidthChanged(delta: deltaY > 0 ? 1 : -1))
@@ -240,14 +244,16 @@ final class SessionCoordinator {
     }
 
     func handleMagnify(_ magnification: CGFloat) {
-        if case .zoom = machine.state {
-            send(.zoomChanged(factor: 1 + magnification))
+        switch machine.state {
+        case .zoom, .liveZoom: send(.zoomChanged(factor: 1 + magnification))
+        default: break
         }
     }
 
     func handleMouseMoved(global: CGPoint) {
-        if case .zoom = machine.state {
-            send(.mouseMoved(global))
+        switch machine.state {
+        case .zoom, .liveZoom: send(.mouseMoved(global))
+        default: break
         }
     }
 
@@ -295,9 +301,51 @@ final class SessionCoordinator {
             } else {
                 NSSound.beep()
             }
-        case .startLiveStream, .stopLiveStream, .freezeLiveFrame:
-            break // Task 3
+        case .startLiveStream:
+            startLiveStream()
+        case .stopLiveStream:
+            liveStream.stop()
+        case .freezeLiveFrame:
+            freezeLiveFrame()
         }
+    }
+
+    private func startLiveStream() {
+        guard case .liveZoom(let ctx) = machine.state,
+              let screen = NSScreen.screens.first(where: { $0.frame == ctx.screen }) else { return }
+        guard permissions.hasScreenRecordingPermission() else {
+            // Defer so the current effect batch (incl. showOverlays) finishes
+            // before the machine unwinds and dismisses; the system prompt then
+            // appears with no overlay above it.
+            Task { @MainActor in
+                self.permissions.requestPermission()
+                self.send(.liveStreamFailed(.permissionDenied))
+            }
+            return
+        }
+        let displayID = screen.displayID
+        liveStream.start(
+            displayID: displayID,
+            excluding: overlays.values.map(\.nsWindow),
+            onFrame: { [weak self] surface in
+                self?.overlays[displayID]?.pushLiveFrame(surface)
+            },
+            onError: { [weak self] failure in
+                self?.send(.liveStreamFailed(failure))
+            }
+        )
+    }
+
+    private func freezeLiveFrame() {
+        guard case .liveZoom(let ctx) = machine.state,
+              let screen = NSScreen.screens.first(where: { $0.frame == ctx.screen }),
+              let image = liveStream.latestFrameImage()
+        else {
+            send(.liveStreamFailed(.captureError))
+            return
+        }
+        snapshots[screen.displayID] = image
+        send(.liveFrameFrozen)
     }
 
     private func captureScreens() {
@@ -327,6 +375,15 @@ final class SessionCoordinator {
 
     private func showOverlays() {
         dismissOverlayWindows()
+        if case .liveZoom(let ctx) = machine.state {
+            guard let screen = NSScreen.screens.first(where: { $0.frame == ctx.screen }) else { return }
+            let controller = OverlayWindowController(screen: screen, coordinator: self)
+            controller.show()
+            overlays[screen.displayID] = controller
+            controller.makeKey()
+            renderAll()
+            return
+        }
         breakImage = nil
         if case .breakTimer = machine.state,
            case .imageFile(let path) = machine.settings.breakTimer.background,

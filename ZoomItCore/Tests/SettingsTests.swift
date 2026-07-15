@@ -70,3 +70,26 @@ struct SettingsBreakMigrationTests {
         #expect(loaded.breakTimer.duration == 60)
     }
 }
+
+struct SettingsRecordingMigrationTests {
+    @Test func jsonWithoutRecordingKeyDecodesToDefaults() throws {
+        var s = Settings.default
+        s.penColor = .blue
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(s)) as! [String: Any]
+        object.removeValue(forKey: "recording")
+        let p = FakePersistence()
+        p.storage["zoomit.settings.v1"] = try JSONSerialization.data(withJSONObject: object)
+        let loaded = SettingsStore(persistence: p).load()
+        #expect(loaded.penColor == .blue)
+        #expect(loaded.recording == .default)
+    }
+
+    @Test func recordingRoundTripsThroughStore() {
+        let store = SettingsStore(persistence: FakePersistence())
+        var s = Settings.default
+        s.recording.recordSystemAudio = true
+        s.recording.recordMicrophone = false
+        store.save(s)
+        #expect(store.load().recording == s.recording)
+    }
+}

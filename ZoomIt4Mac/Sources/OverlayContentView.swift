@@ -35,7 +35,14 @@ final class OverlayContentView: NSView {
 
     func render(state: SessionState) {
         let wasZoomed = zoomBearing(self.state)
+        let wasSnip = if case .snip = self.state { true } else { false }
         self.state = state
+        // Cursor rects only apply once the mouse moves; on snip entry the
+        // mouse is stationary under the fresh overlay, so set the crosshair
+        // explicitly or the arrow lingers until the first click/move.
+        if case .snip = state, !wasSnip {
+            NSCursor.crosshair.set()
+        }
         if zoomBearing(state) && !wasZoomed && zoomContextForThisScreen != nil {
             startZoomEntryAnimation()
         }

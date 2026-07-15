@@ -134,6 +134,10 @@ final class OverlayContentView: NSView {
 
         drawAnnotations(in: cg)
         cg.restoreGState()
+
+        if case .snip(let ctx) = state {
+            drawSnipChrome(ctx, in: cg)
+        }
     }
 
     func drawAnnotations(in cg: CGContext) {
@@ -207,6 +211,58 @@ final class OverlayContentView: NSView {
         ]
         let string = NSAttributedString(string: text, attributes: attributes)
         string.draw(at: anchorOrigin(for: string.size(), position: config.position, in: bounds))
+    }
+
+    private func drawSnipChrome(_ ctx: SnipContext, in cg: CGContext) {
+        let bounds = CGRect(origin: .zero, size: screenFrame.size)
+
+        // Active selection in window-local coords, when the drag touches
+        // this screen. Selection points are global; local = global − origin.
+        var selectionLocal: CGRect?
+        if let anchor = ctx.anchor, let current = ctx.current {
+            let selection = SnipGeometry.normalized(anchor: anchor, current: current)
+            let local = selection.offsetBy(dx: -screenFrame.minX, dy: -screenFrame.minY)
+            if local.intersects(bounds) { selectionLocal = local }
+        }
+
+        // 45% dim over the frozen snapshot, selection punched out.
+        cg.saveGState()
+        if let selectionLocal {
+            cg.beginPath()
+            cg.addRect(bounds)
+            cg.addRect(selectionLocal)
+            cg.clip(using: .evenOdd)
+        }
+        cg.setFillColor(CGColor(gray: 0, alpha: 0.45))
+        cg.fill(bounds)
+        cg.restoreGState()
+
+        guard let selectionLocal else { return }
+        cg.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        cg.setLineWidth(1)
+        cg.stroke(selectionLocal)
+
+        // "W × H" size label near the lower-right corner, flipped inside
+        // the selection when it would fall off-screen.
+        let text = "\(Int(selectionLocal.width.rounded())) × \(Int(selectionLocal.height.rounded()))"
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.white,
+        ]
+        let label = NSAttributedString(string: text, attributes: attributes)
+        let size = label.size()
+        let padding: CGFloat = 4
+        var origin = CGPoint(
+            x: selectionLocal.maxX - size.width - padding,
+            y: selectionLocal.minY - size.height - padding
+        )
+        if origin.y < 0 { origin.y = selectionLocal.minY + padding }
+        if origin.x < 0 { origin.x = padding }
+        let backdrop = CGRect(x: origin.x - padding, y: origin.y - 2,
+                              width: size.width + padding * 2, height: size.height + 4)
+        cg.setFillColor(CGColor(gray: 0, alpha: 0.6))
+        cg.fill(backdrop)
+        label.draw(at: origin)
     }
 
     private func aspectFillRect(for image: CGImage, in bounds: CGRect) -> CGRect {
@@ -368,7 +424,7 @@ final class OverlayContentView: NSView {
 
     override func resetCursorRects() {
         switch state {
-        case .draw, .type:
+        case .draw, .type, .snip:
             addCursorRect(bounds, cursor: .crosshair)
         default:
             addCursorRect(bounds, cursor: .arrow)

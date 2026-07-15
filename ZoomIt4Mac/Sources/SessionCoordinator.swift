@@ -224,18 +224,28 @@ final class SessionCoordinator {
                 color: ctx.canvas.color,
                 width: ctx.canvas.penWidth
             )
+        case .snip:
+            send(.leftMouseDown(global))
         default:
             break
         }
     }
 
     func handleMouseDragged(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        if case .snip = machine.state {
+            send(.mouseMoved(global))
+            return
+        }
         guard activeTracker != nil else { return }
         activeTracker?.update(imageSpacePoint(for: global))
         renderAll()
     }
 
     func handleMouseUp(global: CGPoint, modifiers: NSEvent.ModifierFlags) {
+        if case .snip = machine.state {
+            send(.leftMouseUp(global, optionHeld: modifiers.contains(.option)))
+            return
+        }
         guard let tracker = activeTracker else { return }
         activeTracker = nil
         if let annotation = tracker.finish() {
@@ -302,9 +312,8 @@ final class SessionCoordinator {
             exportScreenshot(toClipboard: false)
         case .copyScreenshot:
             exportScreenshot(toClipboard: true)
-        case .exportSnip:
-            // Task 4: wire the shell (coordinator and overlay)
-            break
+        case .exportSnip(let selection, let alsoSave):
+            exportSnip(selection: selection, alsoSave: alsoSave)
         case .playExpirySound:
             if let sound = NSSound(named: "Glass") {
                 sound.play()
@@ -462,8 +471,11 @@ final class SessionCoordinator {
 
     private func captureScreens() {
         guard permissions.hasScreenRecordingPermission() else {
-            if case .capturing(.zoom) = machine.state {
+            switch machine.state {
+            case .capturing(.zoom), .capturing(.snip):
                 permissions.requestPermission()
+            default:
+                break // break timer falls back to a solid background instead
             }
             send(.captureFailed(.permissionDenied))
             return
@@ -596,5 +608,46 @@ final class SessionCoordinator {
         let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
         if let target { overlays[target.displayID]?.makeKey() }
         renderAll()
+    }
+
+    /// Crop the frozen snapshot of the display that holds (most of) the
+    /// selection and copy it to the clipboard; optionally offer a save panel.
+    private func exportSnip(selection: CGRect, alsoSave: Bool) {
+        let screen = NSScreen.screens.max { a, b in
+            overlapArea(selection, a.frame) < overlapArea(selection, b.frame)
+        }
+        guard let screen, let snapshot = snapshots[screen.displayID] else {
+            NSSound.beep()
+            NSLog("snip export failed: no snapshot for selection display")
+            return
+        }
+        // Derive the scale from the snapshot itself — more robust than
+        // backingScaleFactor if capture and display scale ever disagree.
+        let scale = CGFloat(snapshot.width) / screen.frame.width
+        guard let pixelRect = SnipGeometry.pixelCrop(
+                  selection: selection, displayFrame: screen.frame, scale: scale
+              ),
+              let cropped = snapshot.cropping(to: pixelRect)
+        else {
+            NSSound.beep()
+            NSLog("snip export failed: selection outside display")
+            return
+        }
+        let pointSize = CGSize(width: CGFloat(cropped.width) / scale,
+                               height: CGFloat(cropped.height) / scale)
+        let image = NSImage(cgImage: cropped, size: pointSize)
+        ScreenshotComposer.copy(image)
+        guard alsoSave else { return }
+        // .dismissOverlays runs later in this same effect batch; open the
+        // panel on the next tick so it never sits under a .screenSaver
+        // overlay window.
+        Task { @MainActor in
+            ScreenshotComposer.save(image, suggestedName: "ZoomIt Snip.png")
+        }
+    }
+
+    private func overlapArea(_ a: CGRect, _ b: CGRect) -> CGFloat {
+        let intersection = a.intersection(b)
+        return intersection.isNull ? 0 : intersection.width * intersection.height
     }
 }

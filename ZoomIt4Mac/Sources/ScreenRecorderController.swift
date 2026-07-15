@@ -131,12 +131,12 @@ final class ScreenRecorderController: ScreenRecording {
                 }
                 if let micSession {
                     // startRunning blocks; keep it off the main actor.
-                    // AVCaptureSession isn't Sendable on this SDK; safe here
-                    // because no other actor touches this instance until it
-                    // reaches self.micSession below (see LiveStreamController
-                    // for the same pattern).
-                    nonisolated(unsafe) let session = micSession
-                    Task.detached { session.startRunning() }
+                    // AVCaptureSession isn't Sendable (and CI's older compiler
+                    // also rejects nonisolated(unsafe) captures in detached
+                    // closures) — box it. Safe: no other actor touches this
+                    // instance until it reaches self.micSession below.
+                    let boxed = UncheckedSendable(value: micSession)
+                    Task.detached { boxed.value.startRunning() }
                 }
                 self.stream = stream
                 self.output = output
@@ -164,13 +164,12 @@ final class ScreenRecorderController: ScreenRecording {
         self.micSession = nil
         Task {
             if let mic {
-                // AVCaptureSession isn't Sendable on this SDK; safe here
-                // because `mic` is a local capture of the outgoing session,
-                // already detached from `self.micSession` above. Awaited so
-                // the mic queue is fully drained before the writer finalizes
-                // below (otherwise a late mic append can race markAsFinished).
-                nonisolated(unsafe) let session = mic
-                await Task.detached { session.stopRunning() }.value
+                // AVCaptureSession isn't Sendable — box it (see start()).
+                // Awaited so the mic queue is fully drained before the writer
+                // finalizes below (otherwise a late mic append can race
+                // markAsFinished).
+                let boxed = UncheckedSendable(value: mic)
+                await Task.detached { boxed.value.stopRunning() }.value
             }
             try? await stream?.stopCapture()
             let url = await writer?.finish()
@@ -379,4 +378,12 @@ private final class RecorderOutput: NSObject, SCStreamOutput, SCStreamDelegate,
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         writer.appendMic(sampleBuffer)
     }
+}
+
+/// Explicit Sendable box for values that must cross an isolation boundary
+/// where safety is established by ownership discipline, not the type system.
+/// Works on all supported compiler versions, unlike nonisolated(unsafe)
+/// captures in detached closures (rejected by CI's Xcode 16.4).
+private struct UncheckedSendable<T>: @unchecked Sendable {
+    let value: T
 }

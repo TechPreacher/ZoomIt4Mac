@@ -154,6 +154,8 @@ final class SessionCoordinator {
             case "w": send(.keyCommand(.whiteboard))
             case "k": send(.keyCommand(.blackboard))
             case "t": send(.keyCommand(.enterType))
+            case "h": send(.keyCommand(.toggleHighlighter))
+            case "x": send(.keyCommand(.toggleBlur))
             default:
                 if event.keyCode == 48 { tabHeld = true } // Tab: ellipse modifier
             }
@@ -222,7 +224,8 @@ final class SessionCoordinator {
                 shape: shapeKind(for: modifiers),
                 start: imageSpacePoint(for: global),
                 color: ctx.canvas.color,
-                width: ctx.canvas.penWidth
+                width: ctx.canvas.penWidth,
+                style: ctx.canvas.penStyle
             )
         case .snip:
             send(.leftMouseDown(global))

@@ -34,6 +34,8 @@
   | `⌘Z` or right-click | undo |
   | `E` | erase all |
   | `W` / `K` | whiteboard / blackboard |
+  | `H` | highlighter pen (toggle) |
+  | `X` | blur pen — drag a rectangle to blur (zoomed image only) |
   | `⌘S` / `⌘C` | save PNG / copy to clipboard |
   | `Esc` | back to zoom, or exit |
 

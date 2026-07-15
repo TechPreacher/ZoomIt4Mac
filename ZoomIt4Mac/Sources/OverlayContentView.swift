@@ -1,10 +1,14 @@
 import AppKit
+import CoreImage
 import IOSurface
 import ZoomItCore
 
 final class OverlayContentView: NSView {
     var snapshot: CGImage? {
-        didSet { needsDisplay = true }
+        didSet {
+            clearBlurCache()
+            needsDisplay = true
+        }
     }
 
     var breakImage: CGImage? {
@@ -349,8 +353,14 @@ final class OverlayContentView: NSView {
             cg.strokeEllipse(in: rect)
         case let .text(string, at, color, fontSize):
             drawTypeRun(text: string, at: at, color: color, fontSize: fontSize)
-        case .highlighted, .blurRect:
-            break // Rendering lands with the shell task.
+        case let .highlighted(base):
+            cg.saveGState()
+            cg.setAlpha(0.4)
+            cg.setBlendMode(.multiply)
+            draw(base.scalingWidth(by: 3), in: cg)
+            cg.restoreGState()
+        case let .blurRect(rect):
+            drawBlurRect(rect, in: cg)
         }
     }
 
@@ -372,6 +382,43 @@ final class OverlayContentView: NSView {
             .foregroundColor: nsColor(color),
         ]
         NSAttributedString(string: text, attributes: attributes).draw(at: point)
+    }
+
+    // MARK: - Blur pen
+
+    /// Blurred snapshot crops keyed by rect; cleared when the snapshot
+    /// changes. Bounded so drag previews can't hoard memory.
+    private let blurCache = NSCache<NSString, CGImage>()
+
+    private func clearBlurCache() {
+        blurCache.removeAllObjects()
+        blurCache.countLimit = 64
+    }
+
+    /// Draw the frozen snapshot region Gaussian-blurred. `rect` is in image
+    /// space (global points); the context is already translated so global
+    /// coordinates draw at the right window-local spot.
+    private func drawBlurRect(_ rect: CGRect, in cg: CGContext) {
+        guard let snapshot else { return }
+        let key = "\(rect.origin.x),\(rect.origin.y),\(rect.width),\(rect.height)" as NSString
+        if let cached = blurCache.object(forKey: key) {
+            cg.interpolationQuality = .high
+            cg.draw(cached, in: rect)
+            return
+        }
+        let scale = CGFloat(snapshot.width) / screenFrame.width
+        guard let pixelRect = SnipGeometry.pixelCrop(selection: rect, displayFrame: screenFrame, scale: scale),
+              let crop = snapshot.cropping(to: pixelRect)
+        else { return }
+        let input = CIImage(cgImage: crop)
+        let blurred = input.clampedToExtent()
+            .applyingGaussianBlur(sigma: 12 * scale)
+            .cropped(to: input.extent)
+        let context = CIContext(options: [.useSoftwareRenderer: false])
+        guard let output = context.createCGImage(blurred, from: blurred.extent) else { return }
+        blurCache.setObject(output, forKey: key)
+        cg.interpolationQuality = .high
+        cg.draw(output, in: rect)
     }
 
     // MARK: - Live zoom layer hosting

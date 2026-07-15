@@ -258,6 +258,8 @@ final class SessionCoordinator {
             if let view = activeOverlayView(), let image = ScreenshotComposer.image(of: view) {
                 ScreenshotComposer.copy(image)
             }
+        case .playExpirySound:
+            NSSound.beep()
         }
     }
 

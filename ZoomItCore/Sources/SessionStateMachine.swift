@@ -77,6 +77,9 @@ public enum SessionEvent: Equatable, Sendable {
     case displayConfigurationChanged
     case settingsChanged(Settings)
     case breakRequested(now: TimeInterval)
+    case breakTick(now: TimeInterval)
+    case breakPauseResume(now: TimeInterval)
+    case breakAdjust(seconds: TimeInterval, now: TimeInterval)
 }
 
 public enum SessionEffect: Equatable, Sendable {
@@ -88,6 +91,7 @@ public enum SessionEffect: Equatable, Sendable {
     case notifyCaptureFailure
     case saveScreenshot
     case copyScreenshot
+    case playExpirySound
 }
 
 public struct SessionStateMachine: Sendable {
@@ -180,10 +184,40 @@ public struct SessionStateMachine: Sendable {
     }
 
     private mutating func handleBreak(_ event: SessionEvent, _ ctx: BreakContext) -> [SessionEffect] {
+        var ctx = ctx
         switch event {
         case .escape, .rightMouseAction, .breakRequested, .hotkey:
             state = .idle
             return [.dismissOverlays]
+        case .breakTick(let now):
+            guard ctx.timer.isExpired(at: now), !ctx.soundPlayed else {
+                state = .breakTimer(ctx)
+                return [.render]
+            }
+            ctx.soundPlayed = true
+            var effects: [SessionEffect] = []
+            if settings.breakTimer.playSound { effects.append(.playExpirySound) }
+            if settings.breakTimer.showElapsedAfterExpiry {
+                state = .breakTimer(ctx)
+                effects.append(.render)
+            } else {
+                state = .idle
+                effects.append(.dismissOverlays)
+            }
+            return effects
+        case .breakPauseResume(let now):
+            if ctx.timer.isPaused {
+                ctx.timer.resume(at: now)
+            } else {
+                ctx.timer.pause(at: now)
+            }
+            state = .breakTimer(ctx)
+            return [.render]
+        case .breakAdjust(let seconds, let now):
+            ctx.timer.adjust(by: seconds, at: now)
+            if !ctx.timer.isExpired(at: now) { ctx.soundPlayed = false }
+            state = .breakTimer(ctx)
+            return [.render]
         default:
             return []
         }

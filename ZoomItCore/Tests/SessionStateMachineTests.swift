@@ -437,3 +437,72 @@ struct SessionBreakEntryTests {
         #expect(HotkeyConfiguration.default.conflictingCombos().isEmpty)
     }
 }
+
+struct SessionBreakRunTests {
+    // breakMachine() starts a 600 s timer at now=1000 (defaults: sound on, elapsed on)
+
+    @Test func tickRendersWhileRunning() {
+        var m = breakMachine()
+        #expect(m.handle(.breakTick(now: 1001)) == [.render])
+        #expect(m.breakContext?.soundPlayed == false)
+    }
+
+    @Test func expiryEmitsSoundOnceThenKeepsCounting() {
+        var m = breakMachine()
+        #expect(m.handle(.breakTick(now: 1600)) == [.playExpirySound, .render])
+        #expect(m.breakContext?.soundPlayed == true)
+        #expect(m.handle(.breakTick(now: 1601)) == [.render]) // once
+        guard case .breakTimer = m.state else { Issue.record("still counting elapsed"); return }
+    }
+
+    @Test func expiryWithSoundDisabledJustRenders() {
+        var settings = Settings.default
+        settings.breakTimer.playSound = false
+        var m = breakMachine(settings)
+        #expect(m.handle(.breakTick(now: 1600)) == [.render])
+        #expect(m.breakContext?.soundPlayed == true) // marked so re-eval stops
+    }
+
+    @Test func expiryWithoutElapsedDisplayExits() {
+        var settings = Settings.default
+        settings.breakTimer.showElapsedAfterExpiry = false
+        var m = breakMachine(settings)
+        let fx = m.handle(.breakTick(now: 1600))
+        #expect(fx == [.playExpirySound, .dismissOverlays])
+        #expect(m.state == .idle)
+    }
+
+    @Test func pauseResumeToggles() {
+        var m = breakMachine()
+        m.handle(.breakPauseResume(now: 1100)) // pause with 500 left
+        #expect(m.breakContext?.timer.isPaused == true)
+        m.handle(.breakTick(now: 5000))
+        #expect(m.breakContext?.timer.remaining(at: 5000) == 500)
+        m.handle(.breakPauseResume(now: 5000)) // resume
+        #expect(m.breakContext?.timer.isPaused == false)
+        #expect(m.breakContext?.timer.remaining(at: 5100) == 400)
+    }
+
+    @Test func adjustChangesRemaining() {
+        var m = breakMachine()
+        #expect(m.handle(.breakAdjust(seconds: 60, now: 1000)) == [.render])
+        #expect(m.breakContext?.timer.remaining(at: 1000) == 660)
+        m.handle(.breakAdjust(seconds: -60, now: 1000))
+        #expect(m.breakContext?.timer.remaining(at: 1000) == 600)
+    }
+
+    @Test func adjustAfterExpiryRearmsSound() {
+        var m = breakMachine()
+        m.handle(.breakTick(now: 1600)) // expire, sound played
+        m.handle(.breakAdjust(seconds: 60, now: 1600))
+        #expect(m.breakContext?.soundPlayed == false) // re-armed
+        #expect(m.handle(.breakTick(now: 1660)) == [.playExpirySound, .render])
+    }
+
+    @Test func breakEventsIgnoredOutsideBreakState() {
+        var m = machine()
+        #expect(m.handle(.breakTick(now: 1)).isEmpty)
+        #expect(m.handle(.breakPauseResume(now: 1)).isEmpty)
+        #expect(m.handle(.breakAdjust(seconds: 60, now: 1)).isEmpty)
+    }
+}

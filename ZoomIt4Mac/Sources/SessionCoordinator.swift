@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import ZoomItCore
 
 extension NSScreen {
@@ -26,6 +27,10 @@ final class SessionCoordinator {
 
     var onRecordingStateChange: ((Bool) -> Void)?
     private var lastReportedRecording = false
+    /// A finished recording's URL waiting to be revealed in Finder once the
+    /// session returns to .idle — activating Finder while a mode (draw/type/
+    /// break/zoom) is active would steal keyboard focus from the overlay.
+    private var pendingRevealURL: URL?
 
     var currentState: SessionState { machine.state }
 
@@ -63,6 +68,10 @@ final class SessionCoordinator {
         if machine.isRecording != lastReportedRecording {
             lastReportedRecording = machine.isRecording
             onRecordingStateChange?(machine.isRecording)
+        }
+        if let url = pendingRevealURL, machine.state == .idle {
+            pendingRevealURL = nil
+            NSWorkspace.shared.activateFileViewerSelecting([url])
         }
     }
 
@@ -319,9 +328,15 @@ final class SessionCoordinator {
         case .startRecording:
             startRecording()
         case .stopRecording:
-            recorder.stop { url in
-                if let url {
+            recorder.stop { [weak self] url in
+                guard let self, let url else { return }
+                // Reveal now if idle, else defer until the session settles
+                // (see pendingRevealURL) so Finder activation doesn't steal
+                // keyboard focus from an active overlay mode.
+                if self.machine.state == .idle {
                     NSWorkspace.shared.activateFileViewerSelecting([url])
+                } else {
+                    self.pendingRevealURL = url
                 }
             }
         }
@@ -343,8 +358,40 @@ final class SessionCoordinator {
             return
         }
         let recording = machine.settings.recording
+        let displayID = screen.displayID
+
+        // Screen-Recording preflight above already handles its own system
+        // prompt via requestPermission(); this preflight is a *second*,
+        // independent one for the mic authorization the recorder would
+        // otherwise trigger from a background queue. Resolving it here first
+        // lets us hide overlays for the prompt's duration. Accepted
+        // limitation: if the mic prompt still manages to appear from within
+        // an active mode in some edge case, it can sit behind the
+        // .screenSaver-level overlay — the guidance alert (Esc, then
+        // re-grant) covers recovery.
+        guard recording.recordMicrophone,
+              AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined,
+              !overlays.isEmpty
+        else {
+            beginRecording(displayID: displayID, recording: recording)
+            return
+        }
+
+        overlays.values.forEach { $0.close() }
+        Task { @MainActor in
+            _ = await AVCaptureDevice.requestAccess(for: .audio)
+            self.overlays.values.forEach { $0.show() }
+            let mouse = NSEvent.mouseLocation
+            let target = NSScreen.screen(containing: mouse) ?? NSScreen.main
+            if let target { self.overlays[target.displayID]?.makeKey() }
+            self.renderAll()
+            self.beginRecording(displayID: displayID, recording: recording)
+        }
+    }
+
+    private func beginRecording(displayID: CGDirectDisplayID, recording: RecordingConfiguration) {
         recorder.start(
-            displayID: screen.displayID,
+            displayID: displayID,
             microphone: recording.recordMicrophone,
             systemAudio: recording.recordSystemAudio,
             onError: { [weak self] _ in

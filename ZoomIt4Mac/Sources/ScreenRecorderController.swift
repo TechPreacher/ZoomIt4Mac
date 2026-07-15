@@ -86,7 +86,11 @@ final class ScreenRecorderController: ScreenRecording {
                 let output = RecorderOutput(writer: writer, onStopped: { [weak self] in
                     guard let self, gen == self.generation else { return }
                     // Salvage what was written (partial file still revealed
-                    // if non-empty), then report the failure.
+                    // if non-empty), then report the failure. Unlike the
+                    // coordinator's normal stop path this reveal is not
+                    // deferred to .idle — it only fires on mid-recording
+                    // stream death, which is rare enough to accept the
+                    // (unlikely) focus-theft risk here.
                     self.stop { url in
                         if let url {
                             NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -185,9 +189,16 @@ final class ScreenRecorderController: ScreenRecording {
             .appendingPathComponent("ZoomIt4Mac", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        let name = "Recording \(formatter.string(from: Date())).mp4"
-        return directory.appendingPathComponent(name)
+        let baseName = "Recording \(formatter.string(from: Date()))"
+        var candidate = directory.appendingPathComponent("\(baseName).mp4")
+        var suffix = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = directory.appendingPathComponent("\(baseName) (\(suffix)).mp4")
+            suffix += 1
+        }
+        return candidate
     }
 }
 
@@ -219,7 +230,7 @@ private final class RecordingWriter: @unchecked Sendable {
 
         let audioSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: 44_100,
+            AVSampleRateKey: 48_000,
             AVNumberOfChannelsKey: 2,
         ]
         if systemAudio {
@@ -238,7 +249,9 @@ private final class RecordingWriter: @unchecked Sendable {
         } else {
             micInput = nil
         }
-        writer.startWriting()
+        guard writer.startWriting() else {
+            throw writer.error ?? CocoaError(.fileWriteUnknown)
+        }
     }
 
     /// Video drives the session clock: audio arriving before the first video
@@ -307,6 +320,7 @@ private final class RecordingWriter: @unchecked Sendable {
     private func cancelInputsLocked() {
         lock.lock()
         defer { lock.unlock() }
+        guard !cancelled else { return }
         cancelled = true
         writer.cancelWriting()
     }

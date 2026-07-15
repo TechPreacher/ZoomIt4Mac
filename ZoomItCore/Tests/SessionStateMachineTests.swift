@@ -769,4 +769,19 @@ struct SessionRecordingTests {
         #expect(m.isRecording)
         guard case .type = m.state else { Issue.record("type must survive"); return }
     }
+
+    @Test func toggleDuringCaptureLeavesCaptureIntact() {
+        var m = machine()
+        m.handle(.hotkey(.toggleZoom, mouse: testMouse, screen: testScreen)) // .capturing
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.startRecording])
+        #expect(m.isRecording)
+        guard case .capturing = m.state else { Issue.record("capturing must survive"); return }
+    }
+
+    @Test func settingsChangedPreservesRecording() {
+        var m = machine()
+        m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen))
+        m.handle(.settingsChanged(Settings.default))
+        #expect(m.isRecording)
+    }
 }

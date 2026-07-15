@@ -93,12 +93,13 @@ final class StatusItemController: NSObject {
         } else {
             ("plus.magnifyingglass", "ZoomIt4Mac")
         }
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
+        var image = NSImage(systemSymbolName: symbol, accessibilityDescription: description)
         if recordingOn && !warningOn {
-            image?.isTemplate = false // allow the red tint
-            statusItem.button?.contentTintColor = .systemRed
-        } else {
-            statusItem.button?.contentTintColor = nil
+            // contentTintColor is unreliable on a non-template SF Symbol;
+            // bake the red tint into the image itself via a palette config.
+            let config = NSImage.SymbolConfiguration(paletteColors: [.systemRed])
+            image = image?.withSymbolConfiguration(config)
+            image?.isTemplate = false
         }
         statusItem.button?.image = image
     }

@@ -1,6 +1,9 @@
 import AppKit
 import CoreImage
-import ScreenCaptureKit
+// @preconcurrency: SCShareableContent is not Sendable in the macOS 15 SDK
+// (Xcode 16.x, used by CI); returning it from the nonisolated async fetch
+// into this MainActor task is otherwise a Swift 6 isolation error there.
+@preconcurrency import ScreenCaptureKit
 import ZoomItCore
 
 @MainActor

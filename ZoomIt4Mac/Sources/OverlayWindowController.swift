@@ -42,6 +42,10 @@ final class OverlayWindowController {
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.sharingType = .none // never capture our own overlay
         window.acceptsMouseMovedEvents = true
+        // Explicitly setting this (even to its default) disables AppKit's
+        // per-pixel transparency hit-testing, which would otherwise pass
+        // clicks through the transparent plain-draw overlay to windows below.
+        window.ignoresMouseEvents = false
         window.isReleasedWhenClosed = false
         window.contentView = contentView
     }
@@ -63,4 +67,5 @@ final class OverlayWindowController {
     func render(state: SessionState) {
         contentView.render(state: state)
     }
+
 }

@@ -8,6 +8,9 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     CODE_SIGN_STYLE: Automatic
+    # Stable signing identity so TCC permissions survive rebuilds
+    # (ad-hoc signatures change every build and reset Screen Recording consent).
+    DEVELOPMENT_TEAM: M9Y77E7ZX5
 targets:
   ZoomItCore:
     type: framework

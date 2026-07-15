@@ -13,6 +13,7 @@ Screen Recording (`⌃5`): record the active display — including ZoomIt4Mac's 
 | Topic | Decision |
 |---|---|
 | Default hotkey | ⌃5 (keyCode 23), rebindable; toggles start/stop |
+| Start notice | ⌃5 first shows a centered HUD ("recording is starting… press ⌃5 again to stop", live combo label) for 2 s, then capture begins — the notice is never part of the video. ⌃5 during the notice cancels. Machine models this as `RecordingPhase` off → pending → active (`isRecording` = active only); effects `.showRecordingNotice`/`.dismissRecordingNotice`, event `.recordingNoticeElapsed` from a shell timer |
 | Concurrency | Recording is orthogonal to modes — record while zooming/drawing/typing/breaking; Esc and mode changes never stop it |
 | Audio | Two independent settings toggles: microphone (default ON) and system audio (default OFF); both mixed into the file |
 | Microphone on macOS 14 | Separate `AVCaptureSession` audio pipeline (SCK gains mic capture only in macOS 15); `NSMicrophoneUsageDescription` + mic TCC prompt on first mic-enabled recording; denial degrades to recording without mic (beep + log), never blocks |

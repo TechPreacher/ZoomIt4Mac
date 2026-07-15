@@ -86,6 +86,7 @@ public enum SessionEvent: Equatable, Sendable {
     case liveFrameFrozen
     case liveStreamFailed(CaptureFailure)
     case recordingFailed
+    case recordingNoticeElapsed
 }
 
 public enum SessionEffect: Equatable, Sendable {
@@ -103,12 +104,26 @@ public enum SessionEffect: Equatable, Sendable {
     case freezeLiveFrame
     case startRecording
     case stopRecording
+    case showRecordingNotice
+    case dismissRecordingNotice
+}
+
+public enum RecordingPhase: Equatable, Sendable {
+    /// Not recording.
+    case off
+    /// The "recording is starting" notice is showing; capture hasn't begun.
+    case pending
+    /// Capture is running.
+    case active
 }
 
 public struct SessionStateMachine: Sendable {
     public private(set) var state: SessionState = .idle
     public private(set) var settings: Settings
-    public private(set) var isRecording = false
+    public private(set) var recordingPhase: RecordingPhase = .off
+
+    /// True only while capture is actually running (not during the notice).
+    public var isRecording: Bool { recordingPhase == .active }
 
     public init(settings: Settings) {
         self.settings = settings.sanitized()
@@ -121,17 +136,36 @@ public struct SessionStateMachine: Sendable {
             settings = s.sanitized()
             return []
         case .hotkey(.toggleRecord, _, _):
-            isRecording.toggle()
-            return isRecording ? [.startRecording] : [.stopRecording]
+            switch recordingPhase {
+            case .off:
+                recordingPhase = .pending
+                return [.showRecordingNotice]
+            case .pending:
+                recordingPhase = .off
+                return [.dismissRecordingNotice]
+            case .active:
+                recordingPhase = .off
+                return [.stopRecording]
+            }
+        case .recordingNoticeElapsed:
+            guard recordingPhase == .pending else { return [] }
+            recordingPhase = .active
+            return [.dismissRecordingNotice, .startRecording]
         case .recordingFailed:
-            guard isRecording else { return [] }
-            isRecording = false
+            guard recordingPhase == .active else { return [] }
+            recordingPhase = .off
             return [.notifyCaptureFailure]
         case .displayConfigurationChanged:
             var effects: [SessionEffect] = []
-            if isRecording {
-                isRecording = false
+            switch recordingPhase {
+            case .pending:
+                recordingPhase = .off
+                effects.append(.dismissRecordingNotice)
+            case .active:
+                recordingPhase = .off
                 effects.append(.stopRecording)
+            case .off:
+                break
             }
             if case .idle = state { return effects }
             let wasLive = if case .liveZoom = state { true } else { false }

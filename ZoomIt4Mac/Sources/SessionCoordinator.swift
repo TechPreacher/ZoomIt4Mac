@@ -23,6 +23,8 @@ final class SessionCoordinator {
     private(set) var snapshots: [CGDirectDisplayID: CGImage] = [:]
     private var activeTracker: ShapeTracker?
     private var breakTickTimer: Timer?
+    private let recordingNotice = RecordingNoticeController()
+    private var recordingNoticeTimer: Timer?
     private var breakImage: CGImage?
 
     var onRecordingStateChange: ((Bool) -> Void)?
@@ -339,7 +341,33 @@ final class SessionCoordinator {
                     self.pendingRevealURL = url
                 }
             }
+        case .showRecordingNotice:
+            showRecordingNotice()
+        case .dismissRecordingNotice:
+            dismissRecordingNotice()
         }
+    }
+
+    private func showRecordingNotice() {
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screen(containing: mouse) ?? NSScreen.main else {
+            send(.recordingNoticeElapsed) // headless edge: skip straight to capture
+            return
+        }
+        let combo = comboLabel(machine.settings.hotkeys.combo(for: .toggleRecord))
+        recordingNotice.show(on: screen, stopComboLabel: combo)
+        recordingNoticeTimer?.invalidate()
+        recordingNoticeTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.send(.recordingNoticeElapsed)
+            }
+        }
+    }
+
+    private func dismissRecordingNotice() {
+        recordingNoticeTimer?.invalidate()
+        recordingNoticeTimer = nil
+        recordingNotice.dismiss()
     }
 
     private func startRecording() {

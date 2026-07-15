@@ -10,6 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsStore = SettingsStore(persistence: UserDefaults.standard)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set the icon explicitly so the About panel and system dialogs show
+        // it even when LaunchServices serves a stale cached icon for this
+        // (frequently re-signed) debug bundle.
+        if let iconPath = Bundle.main.path(forResource: "AppIcon", ofType: "icns"),
+           let icon = NSImage(contentsOfFile: iconPath) {
+            NSApp.applicationIconImage = icon
+        }
+
         let settings = settingsStore.load()
         let coordinator = SessionCoordinator(
             settings: settings,

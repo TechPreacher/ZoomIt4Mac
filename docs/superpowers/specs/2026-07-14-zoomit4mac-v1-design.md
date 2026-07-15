@@ -53,7 +53,7 @@ Event flow is one-directional: hotkey / keyboard / mouse events → `SessionStat
 
 ### Zoom (⌃1)
 
-- Trigger → freeze: one snapshot per display; overlay windows appear showing the snapshot directly at the default zoom level (2×, configurable), centered on the mouse. (An animated 1×→default zoom-in transition is post-v1 polish.)
+- Trigger → freeze: one snapshot per display; overlay windows appear and smoothly animate from 1× to the default zoom level (2×, configurable) over ~250 ms with ease-out, centered on the mouse (ZoomIt-style smooth zoom).
 - Zoom control: scroll wheel, trackpad pinch, or ↑/↓ arrows. Range 1×–8×, smooth stepping.
 - Pan: mouse movement pans via the ZoomIt mouse-follow mapping (all screen edges reachable at every zoom level).
 - Left-click enters draw mode on the frozen zoomed image. Right-click or Esc exits zoom and dismisses overlays. ⌃1 again also exits.
@@ -67,7 +67,7 @@ Event flow is one-directional: hotkey / keyboard / mouse events → `SessionStat
 - Colors via keys: R red, G green, B blue, O orange, Y yellow, P pink.
 - Pen width: ⌘scroll adjusts.
 - Undo: ⌘Z (unlimited within session); right-click also undoes last annotation (ZoomIt parity). E erases all. W fills solid white background (whiteboard), K solid black (blackboard).
-- ⌘S saves the annotated screen as PNG via save panel; ⌘C copies it to the clipboard.
+- ⌘S saves the annotated screen as PNG via save panel; ⌘C copies it to the clipboard. In v1 the exported image is exactly what the overlay renders: annotations over the frozen zoom image (draw-on-zoom), over the white/black board, or over transparency in plain draw. Compositing annotations over the live desktop in plain draw is a deferred enhancement.
 - Esc: back to zoom if draw was entered from zoom, otherwise exits to idle.
 - Out of scope for v1: blur/highlighter tool (ZoomIt's X key).
 

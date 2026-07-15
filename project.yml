@@ -1,0 +1,58 @@
+name: ZoomIt4Mac
+options:
+  bundleIdPrefix: com.corti
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CODE_SIGN_STYLE: Automatic
+    # Stable signing identity so TCC permissions survive rebuilds
+    # (ad-hoc signatures change every build and reset Screen Recording consent).
+    DEVELOPMENT_TEAM: M9Y77E7ZX5
+targets:
+  ZoomItCore:
+    type: framework
+    platform: macOS
+    sources: [ZoomItCore/Sources]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  ZoomItCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [ZoomItCore/Tests]
+    dependencies:
+      - target: ZoomItCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  ZoomIt4Mac:
+    type: application
+    platform: macOS
+    sources:
+      - ZoomIt4Mac/Sources
+      - path: ZoomIt4Mac/Resources
+        buildPhase: resources
+    dependencies:
+      - target: ZoomItCore
+        embed: true
+    info:
+      path: ZoomIt4Mac/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: ZoomIt4Mac
+        NSPrincipalClass: NSApplication
+        CFBundleIconFile: AppIcon
+    settings:
+      base:
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+schemes:
+  ZoomIt4Mac:
+    build:
+      targets:
+        ZoomIt4Mac: all
+    test:
+      targets: [ZoomItCoreTests]

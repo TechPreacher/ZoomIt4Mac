@@ -154,6 +154,16 @@ kbd {
 .install-grid p { margin: 0; color: var(--text-dim); font-size: 15px; }
 .install-grid code { font-size: 13px; word-break: break-all; }
 
+.prose {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 64px;
+}
+.prose h2 { font-size: 24px; margin: 32px 0 8px; }
+.prose p, .prose li { color: var(--text-dim); }
+.prose strong { color: var(--text); }
+.prose code { font-size: 0.9em; }
+
 footer {
   border-top: 1px solid var(--border);
   padding: 28px 24px 40px;

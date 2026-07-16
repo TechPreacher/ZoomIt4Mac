@@ -30,7 +30,21 @@ body {
 img { max-width: 100%; height: auto; display: block; }
 a { color: var(--accent); }
 
+/* Decorative strawberry strip pinned to the viewport top; the page scrolls
+   over it. z-index -1 keeps it behind all content. */
+.strawberry-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  z-index: -1;
+  pointer-events: none;
+}
+
 .hero {
+  /* Clear the fixed banner (image aspect: 287/1584 ≈ 18.12%). */
+  margin-top: 18.12vw;
   text-align: center;
 }
 /* Tinted band behind the intro; the screenshot below overlaps its edge. */

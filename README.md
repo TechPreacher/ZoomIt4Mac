@@ -96,6 +96,8 @@ Cutting a release:
    ```
 4. Update `version` and `sha256` in [`TechPreacher/homebrew-tap`](https://github.com/TechPreacher/homebrew-tap)'s `Casks/zoomit4mac.rb`, push.
 
+The marketing site at [zoomit4mac.corti.com](https://zoomit4mac.corti.com) is the static page in [`site/`](site/) — deploy by copying its contents to the web server. Download links resolve the latest GitHub release automatically; no per-release site update needed.
+
 ## Acknowledgements
 
 ZoomIt is a [Sysinternals](https://learn.microsoft.com/sysinternals/) tool by Mark Russinovich; ZoomIt and Sysinternals are trademarks of Microsoft Corporation. This project is an independent re-implementation for macOS and is not affiliated with or endorsed by Microsoft.

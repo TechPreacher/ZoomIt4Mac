@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZoomIt4Mac — screen zoom, annotation & recording for macOS</title>
+  <meta name="description" content="A free, open-source, native macOS re-implementation of Sysinternals ZoomIt: screen zoom, drawing, break timer, screen recording and snipping from your menu bar.">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <meta property="og:title" content="ZoomIt4Mac">
+  <meta property="og:description" content="The Sysinternals ZoomIt experience — native on your Mac. Zoom, draw, record, snip.">
+  <meta property="og:image" content="https://zoomit4mac.corti.com/assets/hero-shapes.jpg">
+  <meta property="og:url" content="https://zoomit4mac.corti.com/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-band">
+  <img class="hero-icon" src="assets/icon-256.png" alt="ZoomIt4Mac app icon" width="128" height="128">
+  <h1>ZoomIt4Mac</h1>
+  <p class="tagline">The Sysinternals ZoomIt experience — native on your Mac.</p>
+  <p class="subline">Zoom, draw, record and snip your screen straight from the menu bar.<br>
+     Free &amp; open source · macOS 14+ · Apple silicon &amp; Intel</p>
+  <div class="cta">
+    <a id="download-dmg" class="button primary" href="https://github.com/TechPreacher/ZoomIt4Mac/releases/latest">
+      Download .dmg <span id="release-version" hidden></span>
+    </a>
+    <a class="button" href="https://github.com/TechPreacher/ZoomIt4Mac">View on GitHub</a>
+  </div>
+  <div class="brew">
+    <code>brew install TechPreacher/tap/zoomit4mac</code>
+    <button id="copy-brew" type="button" hidden>Copy</button>
+  </div>
+  </div>
+  <div class="hero-shot-wrap">
+    <img class="hero-shot" src="assets/hero-shapes.jpg"
+         alt="ZoomIt4Mac draw mode: arrows, shapes and highlighter strokes over a desktop, with a blurred region hiding text">
+  </div>
+</header>
+
+<main>
+  <section class="features" aria-label="Features">
+    <article class="card">
+      <img src="assets/zoom.jpg" alt="A frozen screen magnified around the cursor">
+      <h2>Zoom <kbd>⌃1</kbd></h2>
+      <p>Freeze the screen and glide from 1× to 8×. Move the mouse to pan — every pixel of every edge is reachable. Live Zoom <kbd>⌃4</kbd> does the same on moving content.</p>
+    </article>
+    <article class="card">
+      <img src="assets/hero-shapes.jpg" alt="Freehand strokes, straight lines, arrows and rectangles drawn over the screen">
+      <h2>Draw <kbd>⌃2</kbd></h2>
+      <p>Freehand pen, lines, arrows, rectangles, ellipses in six colors — plus a translucent highlighter <kbd>H</kbd> and a blur pen <kbd>X</kbd> for hiding what the audience shouldn't read.</p>
+    </article>
+    <article class="card">
+      <img src="assets/text.jpg" alt="Large text typed directly onto the screen">
+      <h2>Type <kbd>T</kbd></h2>
+      <p>Click anywhere and type on the screen. Resize on the fly with <kbd>⌘+</kbd> and <kbd>⌘−</kbd>.</p>
+    </article>
+    <article class="card">
+      <img src="assets/break-timer.jpg" alt="A large countdown timer over a faded desktop">
+      <h2>Break Timer <kbd>⌃3</kbd></h2>
+      <p>A full-screen countdown for workshop breaks — configurable duration, position, background and end-of-break sound.</p>
+    </article>
+    <article class="card">
+      <img src="assets/snip.jpg" alt="A bright selection rectangle over a dimmed screen with size label">
+      <h2>Snip <kbd>⌃6</kbd></h2>
+      <p>Freeze, drag, release — the region lands on your clipboard. Hold <kbd>⌥</kbd> to save a PNG as well.</p>
+    </article>
+    <article class="card">
+      <img class="fit-contain" src="assets/menu.jpg" alt="The ZoomIt4Mac menu bar menu with all commands">
+      <h2>Always one keystroke away</h2>
+      <p>Screen Recording <kbd>⌃5</kbd> with optional microphone and system audio, every mode in the menu bar, rebindable hotkeys with conflict detection, a shortcuts reference panel and launch at login.</p>
+    </article>
+  </section>
+
+  <section class="install" aria-label="Install">
+    <h2>Install</h2>
+    <div class="install-grid">
+      <div>
+        <h3>DMG</h3>
+        <p>Download, open, drag <strong>ZoomIt4Mac</strong> to Applications. Signed and notarized.</p>
+      </div>
+      <div>
+        <h3>Homebrew</h3>
+        <p><code>brew install TechPreacher/tap/zoomit4mac</code><br>
+        If Homebrew asks you to trust the tap: <code>brew trust techpreacher/tap</code></p>
+      </div>
+      <div>
+        <h3>Permissions</h3>
+        <p>Zoom, Live Zoom, Snip and Recording ask for <em>Screen Recording</em> once. Microphone is separate and optional. No Accessibility access needed.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p><a href="https://github.com/TechPreacher/ZoomIt4Mac">GitHub</a> ·
+     <a href="https://github.com/TechPreacher/ZoomIt4Mac/blob/main/LICENSE">MIT License</a> ·
+     <a href="privacy.html">Privacy</a> ·
+     © 2026 Sascha Corti</p>
+  <p class="fineprint">ZoomIt is a <a href="https://learn.microsoft.com/sysinternals/">Sysinternals</a> tool by Mark Russinovich; ZoomIt and Sysinternals are trademarks of Microsoft Corporation. ZoomIt4Mac is an independent re-implementation for macOS and is not affiliated with or endorsed by Microsoft.</p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

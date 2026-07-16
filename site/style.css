@@ -107,6 +107,7 @@ main { max-width: 960px; margin: 0 auto; padding: 24px; }
   overflow: hidden;
 }
 .card img { border-bottom: 1px solid var(--border); aspect-ratio: 3024 / 1964; object-fit: cover; }
+.card img.fit-contain { object-fit: contain; background: var(--bg); }
 .card h2 { font-size: 20px; margin: 16px 18px 6px; }
 .card p { margin: 0 18px 18px; color: var(--text-dim); font-size: 15px; }
 

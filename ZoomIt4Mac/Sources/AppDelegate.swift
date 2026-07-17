@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         self.coordinator = coordinator
 
-        let settingsWindow = SettingsWindowController(store: settingsStore) { [weak self] newSettings in
+        let settingsWindow = SettingsWindowController(store: settingsStore, updater: updaterController.updater) { [weak self] newSettings in
             self?.coordinator?.applySettings(newSettings)
             self?.applyHotkeys(newSettings)
         }

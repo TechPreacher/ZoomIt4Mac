@@ -1,5 +1,6 @@
 import AppKit
 import ServiceManagement
+import Sparkle
 import SwiftUI
 import UniformTypeIdentifiers
 import ZoomItCore
@@ -50,11 +51,13 @@ final class SettingsModel: ObservableObject {
     @Published var launchAtLogin: Bool
 
     private let store: SettingsStore
+    private let updater: SPUUpdater
     private let onApply: (ZoomItCore.Settings) -> Void
     private var keyMonitor: Any?
 
-    init(store: SettingsStore, onApply: @escaping (ZoomItCore.Settings) -> Void) {
+    init(store: SettingsStore, updater: SPUUpdater, onApply: @escaping (ZoomItCore.Settings) -> Void) {
         self.store = store
+        self.updater = updater
         self.onApply = onApply
         self.settings = store.load()
         self.launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -110,6 +113,13 @@ final class SettingsModel: ObservableObject {
             NSLog("launch-at-login change failed: \(error)")
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    var automaticallyChecksForUpdates: Bool { updater.automaticallyChecksForUpdates }
+
+    func setAutomaticallyChecksForUpdates(_ enabled: Bool) {
+        updater.automaticallyChecksForUpdates = enabled
+        objectWillChange.send()
     }
 
     func setBreakBackgroundKind(_ kind: BackgroundKind) {
@@ -270,6 +280,12 @@ struct SettingsView: View {
                     Text("H.264 (most compatible)").tag(RecordingCodec.h264)
                 }
             }
+            Section("Updates") {
+                Toggle("Automatically check for updates", isOn: Binding(
+                    get: { model.automaticallyChecksForUpdates },
+                    set: { model.setAutomaticallyChecksForUpdates($0) }
+                ))
+            }
             Section {
                 Toggle("Launch at login", isOn: Binding(
                     get: { model.launchAtLogin },
@@ -306,16 +322,18 @@ final class SettingsWindowController {
     private var window: NSWindow?
     private var model: SettingsModel?
     private let store: SettingsStore
+    private let updater: SPUUpdater
     private let onApply: (ZoomItCore.Settings) -> Void
 
-    init(store: SettingsStore, onApply: @escaping (ZoomItCore.Settings) -> Void) {
+    init(store: SettingsStore, updater: SPUUpdater, onApply: @escaping (ZoomItCore.Settings) -> Void) {
         self.store = store
+        self.updater = updater
         self.onApply = onApply
     }
 
     func show() {
         if window == nil {
-            let model = SettingsModel(store: store, onApply: onApply)
+            let model = SettingsModel(store: store, updater: updater, onApply: onApply)
             self.model = model
             let view = SettingsView(model: model)
             // Open as tall as the screen comfortably allows (capped at 720pt);

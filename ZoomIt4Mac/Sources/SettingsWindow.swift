@@ -154,6 +154,7 @@ struct SettingsView: View {
                 hotkeyRow("Draw", action: .toggleDraw)
                 hotkeyRow("Break Timer", action: .toggleBreak)
                 hotkeyRow("Recording", action: .toggleRecord)
+                hotkeyRow("Record Region", action: .regionRecord)
                 hotkeyRow("Snip", action: .snip)
                 hotkeyRow("OCR Snip", action: .ocrSnip)
                 if !model.conflicts.isEmpty {

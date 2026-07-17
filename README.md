@@ -45,13 +45,14 @@
 - **Screen Recording** (`⌃5`) — records the active display to `~/Movies/ZoomIt4Mac/` (.mp4, revealed in Finder when done; HEVC by default for ~50% smaller files, H.264 selectable in Settings for maximum compatibility). A brief on-screen notice announces the start (press `⌃5` again during it to cancel); capture begins after it disappears, so the notice is never in your video. Your zoom and draw annotations are part of the recording. Optional microphone and system-audio capture (Settings → Recording); works while any other mode is active.
 - **Snip** (`⌃6`) — freezes the screen, then drag to select a region; releasing copies it to the clipboard (hold `⌥` while releasing to also save it as a PNG). Esc or right-click cancels.
 - **OCR Snip** (`⌃⌥6`) — like Snip, but copies the *text* in the selected region: Apple's Vision framework recognizes it entirely on-device (no network, no extra permissions) and a brief HUD confirms ("3 lines copied" / "No text found").
+- **Record Region** (`⌃⇧5`) — like Snip, but records the selected area instead of the full display: same drag-select, then the usual recording notice and a thin red frame marking the recorded bounds (never part of the recording). Codec, microphone, and system-audio settings apply; press `⌃⇧5` (or `⌃5`) again to stop. Smaller region — smaller file.
 - **Settings** — rebind the hotkeys (with conflict detection), default zoom level, pen defaults, recording audio/codec, automatic update checks, launch at login.
 
 Menu bar app (`LSUIElement`) — no Dock icon.
 
 ## Permissions
 
-Zoom, Live Zoom, Snip, OCR Snip, and Screen Recording require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required. Recording with the microphone enabled additionally asks for **Microphone** permission (optional — recordings proceed without it if denied). OCR Snip's text recognition runs entirely on-device and needs no permission of its own.
+Zoom, Live Zoom, Snip, OCR Snip, Record Region, and Screen Recording require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required. Recording with the microphone enabled additionally asks for **Microphone** permission (optional — recordings proceed without it if denied). OCR Snip's text recognition runs entirely on-device and needs no permission of its own.
 
 ## Install
 

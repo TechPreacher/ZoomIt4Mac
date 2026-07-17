@@ -8,6 +8,7 @@ final class StatusItemController: NSObject {
     private let onDraw: () -> Void
     private let onBreak: () -> Void
     private let onRecord: () -> Void
+    private let onRegionRecord: () -> Void
     private let onSnip: () -> Void
     private let onOcrSnip: () -> Void
     private let onShortcuts: () -> Void
@@ -21,6 +22,7 @@ final class StatusItemController: NSObject {
         onDraw: @escaping () -> Void,
         onBreak: @escaping () -> Void,
         onRecord: @escaping () -> Void,
+        onRegionRecord: @escaping () -> Void,
         onSnip: @escaping () -> Void,
         onOcrSnip: @escaping () -> Void,
         onShortcuts: @escaping () -> Void,
@@ -33,6 +35,7 @@ final class StatusItemController: NSObject {
         self.onDraw = onDraw
         self.onBreak = onBreak
         self.onRecord = onRecord
+        self.onRegionRecord = onRegionRecord
         self.onSnip = onSnip
         self.onOcrSnip = onOcrSnip
         self.onShortcuts = onShortcuts
@@ -52,6 +55,7 @@ final class StatusItemController: NSObject {
         menu.addItem(makeItem("Break Timer", action: #selector(breakTapped), key: "3"))
         recordItem = makeItem("Start Recording", action: #selector(recordTapped), key: "5")
         menu.addItem(recordItem)
+        menu.addItem(makeItem("Record Region", action: #selector(regionRecordTapped), key: "5", modifiers: [.control, .shift]))
         menu.addItem(makeItem("Snip", action: #selector(snipTapped), key: "6"))
         menu.addItem(makeItem("OCR Snip", action: #selector(ocrSnipTapped), key: "6", modifiers: [.control, .option]))
         menu.addItem(.separator())
@@ -80,6 +84,7 @@ final class StatusItemController: NSObject {
     @objc private func drawTapped() { onDraw() }
     @objc private func breakTapped() { onBreak() }
     @objc private func recordTapped() { onRecord() }
+    @objc private func regionRecordTapped() { onRegionRecord() }
     @objc private func snipTapped() { onSnip() }
     @objc private func ocrSnipTapped() { onOcrSnip() }
     @objc private func shortcutsTapped() { onShortcuts() }

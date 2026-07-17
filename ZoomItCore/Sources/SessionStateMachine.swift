@@ -34,6 +34,7 @@ public enum CaptureTarget: Equatable, Sendable {
     case breakTimer(now: TimeInterval)
     case snip
     case ocrSnip
+    case regionRecord
 }
 
 public struct BreakContext: Equatable, Sendable {
@@ -49,7 +50,7 @@ public struct BreakContext: Equatable, Sendable {
 }
 
 public enum SnipKind: Equatable, Sendable {
-    case image, text
+    case image, text, record
 }
 
 public struct SnipContext: Equatable, Sendable {
@@ -129,7 +130,7 @@ public enum SessionEffect: Equatable, Sendable {
     case startLiveStream
     case stopLiveStream
     case freezeLiveFrame
-    case startRecording
+    case startRecording(region: CGRect?)
     case stopRecording
     case showRecordingNotice
     case dismissRecordingNotice
@@ -139,7 +140,8 @@ public enum RecordingPhase: Equatable, Sendable {
     /// Not recording.
     case off
     /// The "recording is starting" notice is showing; capture hasn't begun.
-    case pending
+    /// region: selected area in global screen points; nil = full display.
+    case pending(region: CGRect?)
     /// Capture is running.
     case active
 }
@@ -165,7 +167,7 @@ public struct SessionStateMachine: Sendable {
         case .hotkey(.toggleRecord, _, _):
             switch recordingPhase {
             case .off:
-                recordingPhase = .pending
+                recordingPhase = .pending(region: nil)
                 return [.showRecordingNotice]
             case .pending:
                 recordingPhase = .off
@@ -174,10 +176,17 @@ public struct SessionStateMachine: Sendable {
                 recordingPhase = .off
                 return [.stopRecording]
             }
+        case .hotkey(.regionRecord, _, _) where recordingPhase != .off:
+            if case .active = recordingPhase {
+                recordingPhase = .off
+                return [.stopRecording]
+            }
+            recordingPhase = .off
+            return [.dismissRecordingNotice]
         case .recordingNoticeElapsed:
-            guard recordingPhase == .pending else { return [] }
+            guard case .pending(let region) = recordingPhase else { return [] }
             recordingPhase = .active
-            return [.dismissRecordingNotice, .startRecording]
+            return [.dismissRecordingNotice, .startRecording(region: region)]
         case .recordingFailed:
             guard recordingPhase == .active else { return [] }
             recordingPhase = .off
@@ -249,6 +258,9 @@ public struct SessionStateMachine: Sendable {
         case .hotkey(.ocrSnip, _, _):
             state = .capturing(.ocrSnip)
             return [.captureScreens]
+        case .hotkey(.regionRecord, _, _):
+            state = .capturing(.regionRecord)
+            return [.captureScreens]
         default:
             return []
         }
@@ -293,6 +305,15 @@ public struct SessionStateMachine: Sendable {
         case (.captureFailed(.captureError), .ocrSnip):
             state = .idle
             return [.notifyCaptureFailure]
+        case (.captureCompleted, .regionRecord):
+            state = .snip(SnipContext(kind: .record))
+            return [.showOverlays, .render]
+        case (.captureFailed(.permissionDenied), .regionRecord):
+            state = .idle
+            return [.showPermissionGuidance]
+        case (.captureFailed(.captureError), .regionRecord):
+            state = .idle
+            return [.notifyCaptureFailure]
         case (.escape, _):
             state = .idle
             return []
@@ -317,7 +338,10 @@ public struct SessionStateMachine: Sendable {
         case .leftMouseUp(let point, let optionHeld):
             guard let anchor = ctx.anchor else { return [] }
             let selection = SnipGeometry.normalized(anchor: anchor, current: point)
-            guard SnipGeometry.isValidSelection(selection) else {
+            let minimumEdge = ctx.kind == .record
+                ? SnipGeometry.minimumRecordingEdge
+                : SnipGeometry.minimumSelectionEdge
+            guard SnipGeometry.isValidSelection(selection, minimumEdge: minimumEdge) else {
                 // Stray click / sub-minimum drag: clear and let the user retry.
                 state = .snip(SnipContext(kind: ctx.kind))
                 return [.render]
@@ -331,6 +355,11 @@ public struct SessionStateMachine: Sendable {
             case .text:
                 // optionHeld deliberately ignored: no save-to-file variant for text.
                 return [.recognizeText(selection: selection), .dismissOverlays]
+            case .record:
+                // No snapshot read — overlays go first so the notice never
+                // sits under them. optionHeld deliberately ignored.
+                recordingPhase = .pending(region: selection)
+                return [.dismissOverlays, .showRecordingNotice]
             }
         case .escape, .rightMouseAction, .hotkey, .breakRequested:
             state = .idle

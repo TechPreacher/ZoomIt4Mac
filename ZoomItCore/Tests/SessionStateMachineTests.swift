@@ -690,14 +690,22 @@ func recordingMachine(_ base: SessionStateMachine = machine()) -> SessionStateMa
     return m
 }
 
+/// ⌃⇧5 through capture into .record snip selection.
+func regionSelectionMachine(_ base: SessionStateMachine = machine()) -> SessionStateMachine {
+    var m = base
+    m.handle(.hotkey(.regionRecord, mouse: testMouse, screen: testScreen))
+    m.handle(.captureCompleted)
+    return m
+}
+
 struct SessionRecordingTests {
     @Test func toggleShowsNoticeThenElapsedStarts() {
         var m = machine()
         #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.showRecordingNotice])
-        #expect(m.recordingPhase == .pending)
+        #expect(m.recordingPhase == .pending(region: nil))
         #expect(!m.isRecording) // capture not running during the notice
         #expect(m.state == .idle) // no mode entered
-        #expect(m.handle(.recordingNoticeElapsed) == [.dismissRecordingNotice, .startRecording])
+        #expect(m.handle(.recordingNoticeElapsed) == [.dismissRecordingNotice, .startRecording(region: nil)])
         #expect(m.isRecording)
         #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.stopRecording])
         #expect(m.recordingPhase == .off)
@@ -1031,7 +1039,7 @@ struct SnipSessionTests {
         let before = m.state
         let effects = m.handle(.hotkey(.toggleRecord, mouse: .zero, screen: screen))
         #expect(m.state == before)
-        #expect(m.recordingPhase == .pending)
+        #expect(m.recordingPhase == .pending(region: nil))
         #expect(effects == [.showRecordingNotice])
     }
 
@@ -1207,5 +1215,99 @@ struct PenStyleTests {
         m.handle(.liveFrameFrozen)
         #expect(m.handle(.keyCommand(.toggleBlur)) == [.render])
         #expect(canvas(m)?.penStyle == .blur)
+    }
+}
+
+struct RegionRecordingTests {
+    @Test func regionHotkeyStartsSelectionCapture() {
+        var m = machine()
+        #expect(m.handle(.hotkey(.regionRecord, mouse: testMouse, screen: testScreen)) == [.captureScreens])
+        #expect(m.state == .capturing(.regionRecord))
+        #expect(m.recordingPhase == .off)
+    }
+
+    @Test func captureCompletedEntersRecordSnip() {
+        var m = machine()
+        m.handle(.hotkey(.regionRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.captureCompleted) == [.showOverlays, .render])
+        #expect(m.state == .snip(SnipContext(kind: .record)))
+    }
+
+    @Test func releaseShowsNoticeCarryingRegion() {
+        var m = regionSelectionMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        let fx = m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: false))
+        #expect(fx == [.dismissOverlays, .showRecordingNotice])
+        #expect(m.state == .idle)
+        #expect(m.recordingPhase == .pending(region: CGRect(x: 100, y: 100, width: 200, height: 150)))
+        #expect(!m.isRecording)
+    }
+
+    @Test func noticeElapsedStartsRegionRecording() {
+        var m = regionSelectionMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: false))
+        let fx = m.handle(.recordingNoticeElapsed)
+        #expect(fx == [.dismissRecordingNotice, .startRecording(region: CGRect(x: 100, y: 100, width: 200, height: 150))])
+        #expect(m.isRecording)
+    }
+
+    @Test func regionHotkeyDuringNoticeCancels() {
+        var m = regionSelectionMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: false))
+        #expect(m.handle(.hotkey(.regionRecord, mouse: testMouse, screen: testScreen)) == [.dismissRecordingNotice])
+        #expect(m.recordingPhase == .off)
+        #expect(m.handle(.recordingNoticeElapsed).isEmpty)
+    }
+
+    @Test func regionHotkeyWhileActiveStops() {
+        var m = regionSelectionMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: false))
+        m.handle(.recordingNoticeElapsed)
+        #expect(m.handle(.hotkey(.regionRecord, mouse: testMouse, screen: testScreen)) == [.stopRecording])
+        #expect(m.recordingPhase == .off)
+    }
+
+    @Test func toggleRecordStopsRegionRecording() {
+        var m = regionSelectionMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: false))
+        m.handle(.recordingNoticeElapsed)
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.stopRecording])
+        #expect(!m.isRecording)
+    }
+
+    @Test func subMinimumDragRetriesPreservingRecordKind() {
+        var m = regionSelectionMachine()
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        // 31pt: over the 4pt snip minimum, under the 32pt recording minimum.
+        let fx = m.handle(.leftMouseUp(CGPoint(x: 131, y: 131), optionHeld: false))
+        #expect(fx == [.render])
+        #expect(m.state == .snip(SnipContext(kind: .record)))
+        #expect(m.recordingPhase == .off)
+    }
+
+    @Test func escapeDuringSelectionCancelsCleanly() {
+        var m = regionSelectionMachine()
+        #expect(m.handle(.escape) == [.dismissOverlays])
+        #expect(m.state == .idle)
+        #expect(m.recordingPhase == .off)
+    }
+
+    @Test func fullDisplayRecordingStillCarriesNilRegion() {
+        var m = machine()
+        #expect(m.handle(.hotkey(.toggleRecord, mouse: testMouse, screen: testScreen)) == [.showRecordingNotice])
+        #expect(m.recordingPhase == .pending(region: nil))
+        #expect(m.handle(.recordingNoticeElapsed) == [.dismissRecordingNotice, .startRecording(region: nil)])
+    }
+
+    @Test func regionCaptureFailureRoutesLikeSnip() {
+        var m = machine()
+        m.handle(.hotkey(.regionRecord, mouse: testMouse, screen: testScreen))
+        #expect(m.handle(.captureFailed(.permissionDenied)) == [.showPermissionGuidance])
+        #expect(m.state == .idle)
+        #expect(m.recordingPhase == .off)
     }
 }

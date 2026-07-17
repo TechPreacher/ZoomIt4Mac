@@ -17,20 +17,22 @@
   <div class="hero-band">
     <a href="index.html"><img class="hero-icon" src="assets/icon-256.png" alt="ZoomIt4Mac app icon" width="96" height="96"></a>
     <h1>Privacy Policy</h1>
-    <p class="subline">ZoomIt4Mac app &amp; zoomit4mac.corti.com — last updated July 16, 2026</p>
+    <p class="subline">ZoomIt4Mac app &amp; zoomit4mac.corti.com — last updated July 17, 2026</p>
   </div>
 </header>
 
 <main class="prose">
   <section>
     <h2>The app</h2>
-    <p><strong>ZoomIt4Mac collects no data. None.</strong> The app runs entirely on your Mac: there are no accounts, no telemetry, no analytics, no crash reporting, and no network connections of any kind. It does not talk to us — it does not even check for updates.</p>
+    <p><strong>ZoomIt4Mac collects no data. None.</strong> The app runs entirely on your Mac: there are no accounts, no telemetry, no analytics, and no crash reporting. Its only network activity is the update check described below.</p>
     <p>Everything the app produces stays on your device:</p>
     <ul>
       <li><strong>Screenshots and snips</strong> go to your clipboard or to a file location you choose.</li>
-      <li><strong>Screen recordings</strong> (with optional microphone and system audio) are saved to <code>~/Movies/ZoomIt4Mac/</code> on your Mac.</li>
+      <li><strong>Recognized text</strong> (OCR Snip) is produced by Apple's Vision framework entirely on-device — the selected image region is never sent anywhere — and goes to your clipboard.</li>
+      <li><strong>Screen recordings</strong> (full display or a selected region, with optional microphone and system audio) are saved to <code>~/Movies/ZoomIt4Mac/</code> on your Mac.</li>
       <li><strong>Settings</strong> (hotkeys, pen defaults, timer preferences) are stored in the standard macOS preferences on your Mac.</li>
     </ul>
+    <p><strong>Update checks:</strong> the app uses the open-source <a href="https://sparkle-project.org">Sparkle</a> framework to check for new versions — a periodic fetch of a version file hosted on GitHub, plus the download of an update when you install one. These requests carry no account, identifier, or system profile — nothing beyond what any HTTP request carries — and are subject to <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>. You can turn automatic checks off in Settings → Updates.</p>
     <p>The macOS permissions the app requests — Screen Recording, and optionally Microphone — are used solely to provide the corresponding feature at the moment you invoke it. Nothing captured ever leaves your machine unless you share it yourself.</p>
   </section>
 

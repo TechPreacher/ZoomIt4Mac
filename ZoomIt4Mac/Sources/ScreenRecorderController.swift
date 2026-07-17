@@ -8,6 +8,7 @@ protocol ScreenRecording: AnyObject {
     func start(
         displayID: CGDirectDisplayID,
         codec: RecordingCodec,
+        region: CGRect?,
         microphone: Bool,
         systemAudio: Bool,
         onError: @escaping @MainActor (CaptureFailure) -> Void
@@ -26,6 +27,7 @@ final class ScreenRecorderController: ScreenRecording {
     func start(
         displayID: CGDirectDisplayID,
         codec: RecordingCodec,
+        region: CGRect?,
         microphone: Bool,
         systemAudio: Bool,
         onError: @escaping @MainActor (CaptureFailure) -> Void
@@ -66,10 +68,19 @@ final class ScreenRecorderController: ScreenRecording {
                 let filter = SCContentFilter(display: display, excludingWindows: [])
                 let config = SCStreamConfiguration()
                 let scale = self.scaleFactor(for: displayID)
-                let pixelSize = CGSize(
-                    width: CGFloat(display.width) * scale,
-                    height: CGFloat(display.height) * scale
-                )
+                let pixelSize: CGSize
+                if let region {
+                    // region is already in SCK sourceRect space (display-
+                    // relative points, top-left origin), clamped by the
+                    // coordinator via RecordingGeometry.
+                    config.sourceRect = region
+                    pixelSize = RecordingGeometry.outputPixelSize(sourceRect: region, scale: scale)
+                } else {
+                    pixelSize = CGSize(
+                        width: CGFloat(display.width) * scale,
+                        height: CGFloat(display.height) * scale
+                    )
+                }
                 config.width = Int(pixelSize.width)
                 config.height = Int(pixelSize.height)
                 config.minimumFrameInterval = CMTime(value: 1, timescale: 30)

@@ -429,6 +429,7 @@ final class SessionCoordinator {
         recorder.start(
             displayID: displayID,
             codec: recording.codec,
+            region: nil,
             microphone: recording.recordMicrophone,
             systemAudio: recording.recordSystemAudio,
             onError: { [weak self] _ in

@@ -24,6 +24,7 @@ final class SessionCoordinator {
     private var activeTracker: ShapeTracker?
     private var breakTickTimer: Timer?
     private let recordingNotice = RecordingNoticeController()
+    private let recordingFrame = RecordingFrameController()
     private let snipNotice = SnipNoticeController()
     private var recordingNoticeTimer: Timer?
     private var breakImage: CGImage?
@@ -332,9 +333,10 @@ final class SessionCoordinator {
             liveStream.stop()
         case .freezeLiveFrame:
             freezeLiveFrame()
-        case .startRecording:
-            startRecording()
+        case .startRecording(let region):
+            startRecording(region: region)
         case .stopRecording:
+            recordingFrame.dismiss()
             recorder.stop { [weak self] url in
                 guard let self, let url else { return }
                 // Reveal now if idle, else defer until the session settles
@@ -359,7 +361,12 @@ final class SessionCoordinator {
             send(.recordingNoticeElapsed) // headless edge: skip straight to capture
             return
         }
-        let combo = comboLabel(machine.settings.hotkeys.combo(for: .toggleRecord))
+        let stopAction: HotkeyAction = if case .pending(let region) = machine.recordingPhase, region != nil {
+            .regionRecord
+        } else {
+            .toggleRecord
+        }
+        let combo = comboLabel(machine.settings.hotkeys.combo(for: stopAction))
         recordingNotice.show(on: screen, stopComboLabel: combo)
         recordingNoticeTimer?.invalidate()
         recordingNoticeTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
@@ -375,7 +382,7 @@ final class SessionCoordinator {
         recordingNotice.dismiss()
     }
 
-    private func startRecording() {
+    private func startRecording(region: CGRect?) {
         guard permissions.hasScreenRecordingPermission() else {
             // Defer so the current effect batch finishes before the machine
             // unwinds; the system prompt is never hidden behind overlays.
@@ -385,8 +392,28 @@ final class SessionCoordinator {
             }
             return
         }
-        let mouse = NSEvent.mouseLocation
-        guard let screen = NSScreen.screen(containing: mouse) ?? NSScreen.main else {
+        let screen: NSScreen?
+        var sourceRect: CGRect?
+        if let region {
+            screen = NSScreen.screens.max { a, b in
+                overlapArea(region, a.frame) < overlapArea(region, b.frame)
+            }
+            guard let target = screen,
+                  let converted = RecordingGeometry.sourceRect(selection: region, displayFrame: target.frame)
+            else {
+                NSSound.beep()
+                send(.recordingFailed)
+                return
+            }
+            sourceRect = converted
+            // Frame marks the recorded bounds (clamped to the display);
+            // sharingType == .none keeps it out of the recording.
+            recordingFrame.show(around: region.intersection(target.frame))
+        } else {
+            screen = NSScreen.screen(containing: NSEvent.mouseLocation) ?? NSScreen.main
+            sourceRect = nil
+        }
+        guard let screen else {
             send(.recordingFailed)
             return
         }
@@ -406,7 +433,7 @@ final class SessionCoordinator {
               AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined,
               !overlays.isEmpty
         else {
-            beginRecording(displayID: displayID, recording: recording)
+            beginRecording(displayID: displayID, region: sourceRect, recording: recording)
             return
         }
 
@@ -421,18 +448,19 @@ final class SessionCoordinator {
             // The user may have toggled recording off (⌃5) while the
             // permission prompt was up — machine.isRecording is the truth.
             guard self.machine.isRecording else { return }
-            self.beginRecording(displayID: displayID, recording: recording)
+            self.beginRecording(displayID: displayID, region: sourceRect, recording: recording)
         }
     }
 
-    private func beginRecording(displayID: CGDirectDisplayID, recording: RecordingConfiguration) {
+    private func beginRecording(displayID: CGDirectDisplayID, region: CGRect?, recording: RecordingConfiguration) {
         recorder.start(
             displayID: displayID,
             codec: recording.codec,
-            region: nil,
+            region: region,
             microphone: recording.recordMicrophone,
             systemAudio: recording.recordSystemAudio,
             onError: { [weak self] _ in
+                self?.recordingFrame.dismiss()
                 self?.send(.recordingFailed)
             }
         )

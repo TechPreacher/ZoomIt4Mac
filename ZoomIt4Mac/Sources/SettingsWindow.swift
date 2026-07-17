@@ -262,6 +262,13 @@ struct SettingsView: View {
                     get: { model.settings.recording.recordSystemAudio },
                     set: { model.settings.recording.recordSystemAudio = $0; model.save() }
                 ))
+                Picker("Video codec", selection: Binding(
+                    get: { model.settings.recording.codec },
+                    set: { model.settings.recording.codec = $0; model.save() }
+                )) {
+                    Text("HEVC (smaller files)").tag(RecordingCodec.hevc)
+                    Text("H.264 (most compatible)").tag(RecordingCodec.h264)
+                }
             }
             Section {
                 Toggle("Launch at login", isOn: Binding(

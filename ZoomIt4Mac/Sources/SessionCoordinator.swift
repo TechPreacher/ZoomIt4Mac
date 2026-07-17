@@ -425,6 +425,7 @@ final class SessionCoordinator {
     private func beginRecording(displayID: CGDirectDisplayID, recording: RecordingConfiguration) {
         recorder.start(
             displayID: displayID,
+            codec: recording.codec,
             microphone: recording.recordMicrophone,
             systemAudio: recording.recordSystemAudio,
             onError: { [weak self] _ in

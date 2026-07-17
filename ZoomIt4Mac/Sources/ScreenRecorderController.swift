@@ -7,6 +7,7 @@ import ZoomItCore
 protocol ScreenRecording: AnyObject {
     func start(
         displayID: CGDirectDisplayID,
+        codec: RecordingCodec,
         microphone: Bool,
         systemAudio: Bool,
         onError: @escaping @MainActor (CaptureFailure) -> Void
@@ -24,6 +25,7 @@ final class ScreenRecorderController: ScreenRecording {
 
     func start(
         displayID: CGDirectDisplayID,
+        codec: RecordingCodec,
         microphone: Bool,
         systemAudio: Bool,
         onError: @escaping @MainActor (CaptureFailure) -> Void
@@ -80,6 +82,7 @@ final class ScreenRecorderController: ScreenRecording {
                 let writer = try RecordingWriter(
                     url: url,
                     videoSize: pixelSize,
+                    codec: codec,
                     systemAudio: systemAudio,
                     microphone: micEnabled
                 )
@@ -214,14 +217,31 @@ private final class RecordingWriter: @unchecked Sendable {
     private var cancelled = false
     let url: URL
 
-    init(url: URL, videoSize: CGSize, systemAudio: Bool, microphone: Bool) throws {
+    init(url: URL, videoSize: CGSize, codec: RecordingCodec, systemAudio: Bool, microphone: Bool) throws {
         self.url = url
         self.writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
 
+        // Explicit compression properties: without them VideoToolbox picks a
+        // dimension-scaled default bitrate that is ~2× what screen content
+        // needs (see docs/superpowers/specs/2026-07-17-recording-codec-design.md).
+        let frameRate = 30 // matches config.minimumFrameInterval in start()
+        var compression: [String: Any] = [
+            AVVideoAverageBitRateKey: codec.averageBitRate(
+                width: Int(videoSize.width),
+                height: Int(videoSize.height),
+                frameRate: frameRate
+            ),
+            AVVideoExpectedSourceFrameRateKey: frameRate,
+            AVVideoMaxKeyFrameIntervalKey: frameRate * 2,
+        ]
+        if codec == .h264 {
+            compression[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+        }
         let videoSettings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoCodecKey: codec == .hevc ? AVVideoCodecType.hevc : AVVideoCodecType.h264,
             AVVideoWidthKey: Int(videoSize.width),
             AVVideoHeightKey: Int(videoSize.height),
+            AVVideoCompressionPropertiesKey: compression,
         ]
         videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         videoInput.expectsMediaDataInRealTime = true

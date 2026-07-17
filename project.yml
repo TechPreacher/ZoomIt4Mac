@@ -55,6 +55,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         SUFeedURL: https://raw.githubusercontent.com/TechPreacher/ZoomIt4Mac/main/appcast.xml
         SUEnableAutomaticChecks: true
+        SUPublicEDKey: IW/EctscwouCIvm4z1+GNqE1RgaG5UN4RnwHV3vnE6M=
     entitlements:
       path: ZoomIt4Mac/ZoomIt4Mac.entitlements
       properties:

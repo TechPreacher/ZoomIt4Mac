@@ -54,4 +54,18 @@ struct HotkeyConfigurationTests {
         #expect(c.combo(for: .snip) == KeyCombo(keyCode: 22, modifiers: .control))
         #expect(c.combo(for: .toggleZoom) == KeyCombo(keyCode: 18, modifiers: .control))
     }
+
+    @Test func ocrSnipDefaultIsCtrlOption6() {
+        #expect(HotkeyConfiguration.default.combo(for: .ocrSnip) == KeyCombo(keyCode: 22, modifiers: [.control, .option]))
+        #expect(HotkeyConfiguration.default.conflictingCombos().isEmpty)
+    }
+
+    // Migration: hotkey JSON persisted before ocrSnip existed has no ocrSnip
+    // key — combo(for:) must fall back to the ⌃⌥6 default. Pinned.
+    @Test func persistedJSONWithoutOcrSnipFallsBackToCtrlOption6() throws {
+        let json = #"{"bindings":{"snip":{"keyCode":22,"modifiers":1}}}"#
+        let config = try JSONDecoder().decode(HotkeyConfiguration.self, from: Data(json.utf8))
+        #expect(config.combo(for: .snip) == KeyCombo(keyCode: 22, modifiers: .control))
+        #expect(config.combo(for: .ocrSnip) == KeyCombo(keyCode: 22, modifiers: [.control, .option]))
+    }
 }

@@ -99,4 +99,12 @@ struct SnipGeometryTests {
         #expect(SnipGeometry.pixelCrop(selection: sel, displayFrame: CGRect(x: CGFloat.nan, y: 0, width: 1000, height: 500), scale: 1) == nil)
         #expect(SnipGeometry.pixelCrop(selection: sel, displayFrame: CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 500), scale: 1) == nil)
     }
+
+    @Test func recordingMinimumEdgeIsStricter() {
+        let small = CGRect(x: 0, y: 0, width: 31, height: 31)
+        let ok = CGRect(x: 0, y: 0, width: 32, height: 32)
+        #expect(SnipGeometry.isValidSelection(small)) // 4pt default still passes
+        #expect(!SnipGeometry.isValidSelection(small, minimumEdge: SnipGeometry.minimumRecordingEdge))
+        #expect(SnipGeometry.isValidSelection(ok, minimumEdge: SnipGeometry.minimumRecordingEdge))
+    }
 }

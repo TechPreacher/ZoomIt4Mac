@@ -33,6 +33,7 @@ public enum CaptureTarget: Equatable, Sendable {
     case zoom(mouse: CGPoint, screen: CGRect)
     case breakTimer(now: TimeInterval)
     case snip
+    case ocrSnip
 }
 
 public struct BreakContext: Equatable, Sendable {
@@ -47,13 +48,21 @@ public struct BreakContext: Equatable, Sendable {
     }
 }
 
+public enum SnipKind: Equatable, Sendable {
+    case image, text
+}
+
 public struct SnipContext: Equatable, Sendable {
+    /// What happens to the selected region on release: image → clipboard
+    /// bitmap (⌃6), text → on-device OCR to clipboard string (⌃⌥6).
+    public var kind: SnipKind
     /// Selection drag endpoints in global screen points (== image space at
     /// 1×). Nil until the user presses the mouse button.
     public var anchor: CGPoint?
     public var current: CGPoint?
 
-    public init(anchor: CGPoint? = nil, current: CGPoint? = nil) {
+    public init(kind: SnipKind = .image, anchor: CGPoint? = nil, current: CGPoint? = nil) {
+        self.kind = kind
         self.anchor = anchor
         self.current = current
     }
@@ -115,6 +124,7 @@ public enum SessionEffect: Equatable, Sendable {
     case saveScreenshot
     case copyScreenshot
     case exportSnip(selection: CGRect, alsoSave: Bool)
+    case recognizeText(selection: CGRect)
     case playExpirySound
     case startLiveStream
     case stopLiveStream
@@ -236,6 +246,9 @@ public struct SessionStateMachine: Sendable {
         case .hotkey(.snip, _, _):
             state = .capturing(.snip)
             return [.captureScreens]
+        case .hotkey(.ocrSnip, _, _):
+            state = .capturing(.ocrSnip)
+            return [.captureScreens]
         default:
             return []
         }
@@ -271,6 +284,15 @@ public struct SessionStateMachine: Sendable {
         case (.captureFailed(.captureError), .snip):
             state = .idle
             return [.notifyCaptureFailure]
+        case (.captureCompleted, .ocrSnip):
+            state = .snip(SnipContext(kind: .text))
+            return [.showOverlays, .render]
+        case (.captureFailed(.permissionDenied), .ocrSnip):
+            state = .idle
+            return [.showPermissionGuidance]
+        case (.captureFailed(.captureError), .ocrSnip):
+            state = .idle
+            return [.notifyCaptureFailure]
         case (.escape, _):
             state = .idle
             return []
@@ -297,13 +319,19 @@ public struct SessionStateMachine: Sendable {
             let selection = SnipGeometry.normalized(anchor: anchor, current: point)
             guard SnipGeometry.isValidSelection(selection) else {
                 // Stray click / sub-minimum drag: clear and let the user retry.
-                state = .snip(SnipContext())
+                state = .snip(SnipContext(kind: ctx.kind))
                 return [.render]
             }
             state = .idle
             // Export first — dismissOverlays clears the snapshot store the
             // crop reads from.
-            return [.exportSnip(selection: selection, alsoSave: optionHeld), .dismissOverlays]
+            switch ctx.kind {
+            case .image:
+                return [.exportSnip(selection: selection, alsoSave: optionHeld), .dismissOverlays]
+            case .text:
+                // optionHeld deliberately ignored: no save-to-file variant for text.
+                return [.recognizeText(selection: selection), .dismissOverlays]
+            }
         case .escape, .rightMouseAction, .hotkey, .breakRequested:
             state = .idle
             return [.dismissOverlays]

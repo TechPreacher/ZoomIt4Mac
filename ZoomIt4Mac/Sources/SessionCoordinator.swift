@@ -317,6 +317,7 @@ final class SessionCoordinator {
             exportScreenshot(toClipboard: true)
         case .exportSnip(let selection, let alsoSave):
             exportSnip(selection: selection, alsoSave: alsoSave)
+        case .recognizeText: break // wired in Task 4
         case .playExpirySound:
             if let sound = NSSound(named: "Glass") {
                 sound.play()

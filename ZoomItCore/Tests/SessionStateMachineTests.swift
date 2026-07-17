@@ -1045,6 +1045,74 @@ struct SnipSessionTests {
         m.handle(.leftMouseUp(CGPoint(x: 100, y: 100), optionHeld: false))
         #expect(m.isRecording)
     }
+
+    // MARK: text snip (OCR)
+
+    @Test func ocrSnipHotkeyStartsCapture() {
+        var m = machine()
+        let effects = m.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        #expect(m.state == .capturing(.ocrSnip))
+        #expect(effects == [.captureScreens])
+    }
+
+    @Test func captureCompletedEntersTextSnip() {
+        var m = machine()
+        m.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        let effects = m.handle(.captureCompleted)
+        #expect(m.state == .snip(SnipContext(kind: .text)))
+        #expect(effects == [.showOverlays, .render])
+    }
+
+    @Test func textSnipMouseUpEmitsRecognizeText() {
+        var m = machine()
+        m.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        m.handle(.captureCompleted)
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        m.handle(.mouseMoved(CGPoint(x: 300, y: 250)))
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: false))
+        #expect(m.state == .idle)
+        #expect(effects == [
+            .recognizeText(selection: CGRect(x: 100, y: 100, width: 200, height: 150)),
+            .dismissOverlays,
+        ])
+    }
+
+    @Test func textSnipIgnoresOptionOnRelease() {
+        var m = machine()
+        m.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        m.handle(.captureCompleted)
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 300, y: 250), optionHeld: true))
+        #expect(effects == [
+            .recognizeText(selection: CGRect(x: 100, y: 100, width: 200, height: 150)),
+            .dismissOverlays,
+        ])
+    }
+
+    @Test func textSnipInvalidSelectionRetryPreservesKind() {
+        var m = machine()
+        m.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        m.handle(.captureCompleted)
+        m.handle(.leftMouseDown(CGPoint(x: 100, y: 100)))
+        // Sub-minimum drag (<4pt edge): clears the drag but stays in TEXT snip.
+        let effects = m.handle(.leftMouseUp(CGPoint(x: 102, y: 101), optionHeld: false))
+        #expect(m.state == .snip(SnipContext(kind: .text)))
+        #expect(effects == [.render])
+    }
+
+    @Test func ocrSnipCaptureFailureRoutesLikeSnip() {
+        var m = machine()
+        m.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        let effects = m.handle(.captureFailed(.permissionDenied))
+        #expect(m.state == .idle)
+        #expect(effects == [.showPermissionGuidance])
+
+        var m2 = machine()
+        m2.handle(.hotkey(.ocrSnip, mouse: .zero, screen: screen))
+        let effects2 = m2.handle(.captureFailed(.captureError))
+        #expect(m2.state == .idle)
+        #expect(effects2 == [.notifyCaptureFailure])
+    }
 }
 
 struct PenStyleTests {

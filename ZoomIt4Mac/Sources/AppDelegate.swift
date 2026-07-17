@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import ZoomItCore
 
 @MainActor
@@ -9,6 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController?
     private var shortcutsWindowController: ShortcutsWindowController?
     private let settingsStore = SettingsStore(persistence: UserDefaults.standard)
+
+    // Sparkle: created at init so the updater starts with the app and can
+    // schedule its background checks (SUEnableAutomaticChecks defaults on).
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set the icon explicitly so the About panel and system dialogs show
@@ -46,7 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRecord: { coordinator.trigger(.toggleRecord) },
             onSnip: { coordinator.trigger(.snip) },
             onShortcuts: { shortcutsWindow.show() },
-            onSettings: { settingsWindow.show() }
+            onSettings: { settingsWindow.show() },
+            onCheckForUpdates: { [weak self] in self?.updaterController.checkForUpdates(nil) }
         )
         coordinator.onRecordingStateChange = { [weak self] recording in
             self?.statusItemController?.setRecording(recording)

@@ -11,6 +11,7 @@ final class StatusItemController: NSObject {
     private let onSnip: () -> Void
     private let onShortcuts: () -> Void
     private let onSettings: () -> Void
+    private let onCheckForUpdates: () -> Void
     private var recordItem: NSMenuItem!
 
     init(
@@ -21,7 +22,8 @@ final class StatusItemController: NSObject {
         onRecord: @escaping () -> Void,
         onSnip: @escaping () -> Void,
         onShortcuts: @escaping () -> Void,
-        onSettings: @escaping () -> Void
+        onSettings: @escaping () -> Void,
+        onCheckForUpdates: @escaping () -> Void
     ) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         self.onZoom = onZoom
@@ -32,6 +34,7 @@ final class StatusItemController: NSObject {
         self.onSnip = onSnip
         self.onShortcuts = onShortcuts
         self.onSettings = onSettings
+        self.onCheckForUpdates = onCheckForUpdates
         super.init()
 
         statusItem.button?.image = NSImage(
@@ -50,6 +53,7 @@ final class StatusItemController: NSObject {
         menu.addItem(.separator())
         menu.addItem(makeItem("Keyboard Shortcuts…", action: #selector(shortcutsTapped), key: ""))
         menu.addItem(makeItem("Settings…", action: #selector(settingsTapped), key: ","))
+        menu.addItem(makeItem("Check for Updates…", action: #selector(checkForUpdatesTapped), key: ""))
         menu.addItem(.separator())
         let about = NSMenuItem(title: "About ZoomIt4Mac", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         about.target = NSApp
@@ -75,6 +79,7 @@ final class StatusItemController: NSObject {
     @objc private func snipTapped() { onSnip() }
     @objc private func shortcutsTapped() { onShortcuts() }
     @objc private func settingsTapped() { onSettings() }
+    @objc private func checkForUpdatesTapped() { onCheckForUpdates() }
 
     private var warningOn = false
     private var recordingOn = false

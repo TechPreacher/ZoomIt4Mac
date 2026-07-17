@@ -5,6 +5,22 @@ public enum RecordingCodec: String, Codable, Equatable, Sendable {
     case h264
 }
 
+extension RecordingCodec {
+    /// Average bitrate for screen-content encoding. Screen content (flat
+    /// regions, static areas, sharp edges) compresses far better than camera
+    /// video, so these bits-per-pixel targets stay visually lossless while
+    /// roughly halving VideoToolbox's dimension-scaled default.
+    public func averageBitRate(width: Int, height: Int, frameRate: Int) -> Int {
+        let bitsPerPixel: Double
+        switch self {
+        case .h264: bitsPerPixel = 0.07
+        case .hevc: bitsPerPixel = 0.04
+        }
+        let raw = Double(width) * Double(height) * Double(frameRate) * bitsPerPixel
+        return max(1_000_000, Int(raw.rounded()))
+    }
+}
+
 public struct RecordingConfiguration: Codable, Equatable, Sendable {
     public var recordMicrophone: Bool
     public var recordSystemAudio: Bool

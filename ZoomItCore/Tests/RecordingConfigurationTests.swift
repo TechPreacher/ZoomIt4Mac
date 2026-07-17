@@ -42,4 +42,23 @@ struct RecordingConfigurationTests {
         #expect(c.recordSystemAudio)
         #expect(c.codec == .hevc)
     }
+
+    // 16" MacBook Pro Retina full screen: 3456×2234 @ 30 fps.
+    // h264: 3456*2234*30 * 0.07 = 16_213_478.4 → 16_213_478
+    // hevc: 3456*2234*30 * 0.04 =  9_264_844.8 →  9_264_845
+    @Test func bitrateForRetinaFullScreen() {
+        #expect(RecordingCodec.h264.averageBitRate(width: 3456, height: 2234, frameRate: 30) == 16_213_478)
+        #expect(RecordingCodec.hevc.averageBitRate(width: 3456, height: 2234, frameRate: 30) == 9_264_845)
+    }
+
+    @Test func bitrateClampsToFloor() {
+        // 100×100 @ 30 fps is far below the 1 Mbps floor for both codecs.
+        #expect(RecordingCodec.h264.averageBitRate(width: 100, height: 100, frameRate: 30) == 1_000_000)
+        #expect(RecordingCodec.hevc.averageBitRate(width: 100, height: 100, frameRate: 30) == 1_000_000)
+    }
+
+    @Test func bitrateFloorOnDegenerateInput() {
+        #expect(RecordingCodec.hevc.averageBitRate(width: 0, height: 0, frameRate: 30) == 1_000_000)
+        #expect(RecordingCodec.h264.averageBitRate(width: -100, height: 100, frameRate: 30) == 1_000_000)
+    }
 }

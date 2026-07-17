@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onBreak: { coordinator.trigger(.toggleBreak) },
             onRecord: { coordinator.trigger(.toggleRecord) },
             onSnip: { coordinator.trigger(.snip) },
+            onOcrSnip: { coordinator.trigger(.ocrSnip) },
             onShortcuts: { shortcutsWindow.show() },
             onSettings: { settingsWindow.show() },
             onCheckForUpdates: { [weak self] in self?.updaterController.checkForUpdates(nil) }

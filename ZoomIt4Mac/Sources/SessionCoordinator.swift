@@ -24,6 +24,7 @@ final class SessionCoordinator {
     private var activeTracker: ShapeTracker?
     private var breakTickTimer: Timer?
     private let recordingNotice = RecordingNoticeController()
+    private let snipNotice = SnipNoticeController()
     private var recordingNoticeTimer: Timer?
     private var breakImage: CGImage?
 
@@ -317,6 +318,8 @@ final class SessionCoordinator {
             exportScreenshot(toClipboard: true)
         case .exportSnip(let selection, let alsoSave):
             exportSnip(selection: selection, alsoSave: alsoSave)
+        case .recognizeText(let selection):
+            recognizeText(selection: selection)
         case .playExpirySound:
             if let sound = NSSound(named: "Glass") {
                 sound.play()
@@ -615,16 +618,12 @@ final class SessionCoordinator {
     }
 
     /// Crop the frozen snapshot of the display that holds (most of) the
-    /// selection and copy it to the clipboard; optionally offer a save panel.
-    private func exportSnip(selection: CGRect, alsoSave: Bool) {
+    /// selection. Shared by image snip (clipboard bitmap) and OCR snip.
+    private func croppedSnip(selection: CGRect) -> (image: CGImage, displayID: CGDirectDisplayID, scale: CGFloat)? {
         let screen = NSScreen.screens.max { a, b in
             overlapArea(selection, a.frame) < overlapArea(selection, b.frame)
         }
-        guard let screen, let snapshot = snapshots[screen.displayID] else {
-            NSSound.beep()
-            NSLog("snip export failed: no snapshot for selection display")
-            return
-        }
+        guard let screen, let snapshot = snapshots[screen.displayID] else { return nil }
         // Derive the scale from the snapshot itself — more robust than
         // backingScaleFactor if capture and display scale ever disagree.
         let scale = CGFloat(snapshot.width) / screen.frame.width
@@ -632,9 +631,16 @@ final class SessionCoordinator {
                   selection: selection, displayFrame: screen.frame, scale: scale
               ),
               let cropped = snapshot.cropping(to: pixelRect)
-        else {
+        else { return nil }
+        return (cropped, screen.displayID, scale)
+    }
+
+    /// Copy the selection to the clipboard as an image; optionally offer a
+    /// save panel.
+    private func exportSnip(selection: CGRect, alsoSave: Bool) {
+        guard let (cropped, _, scale) = croppedSnip(selection: selection) else {
             NSSound.beep()
-            NSLog("snip export failed: selection outside display")
+            NSLog("snip export failed: no croppable selection")
             return
         }
         let pointSize = CGSize(width: CGFloat(cropped.width) / scale,
@@ -647,6 +653,38 @@ final class SessionCoordinator {
         // overlay window.
         Task { @MainActor in
             ScreenshotComposer.save(image, suggestedName: "ZoomIt Snip.png")
+        }
+    }
+
+    /// Recognize text in the selection on-device and copy it; the HUD
+    /// reports the outcome. The displayID (Sendable) crosses the recognition
+    /// hop instead of NSScreen.
+    private func recognizeText(selection: CGRect) {
+        guard let (cropped, displayID, _) = croppedSnip(selection: selection) else {
+            NSSound.beep()
+            NSLog("ocr snip failed: no croppable selection")
+            return
+        }
+        TextRecognitionService.recognizeText(in: cropped) { [weak self] lines in
+            guard let self else { return }
+            if !lines.isEmpty {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
+            }
+            let screen = NSScreen.screens.first { $0.displayID == displayID } ?? NSScreen.main
+            guard let screen else {
+                NSLog("ocr snip: no screen available for notice HUD")
+                return
+            }
+            if lines.isEmpty {
+                self.snipNotice.show(on: screen, message: "No text found")
+            } else {
+                self.snipNotice.show(
+                    on: screen,
+                    message: lines.count == 1 ? "1 line copied" : "\(lines.count) lines copied"
+                )
+            }
         }
     }
 

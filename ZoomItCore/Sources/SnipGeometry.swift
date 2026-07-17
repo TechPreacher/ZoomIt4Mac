@@ -7,6 +7,10 @@ public enum SnipGeometry {
     /// stray click, not a selection.
     public static let minimumSelectionEdge: CGFloat = 4
 
+    /// Recording needs a substantially larger region than a snip — tiny
+    /// regions produce degenerate encoder dimensions.
+    public static let minimumRecordingEdge: CGFloat = 32
+
     /// Rectangle spanned by a drag, whatever its direction.
     public static func normalized(anchor: CGPoint, current: CGPoint) -> CGRect {
         CGRect(
@@ -17,11 +21,11 @@ public enum SnipGeometry {
         )
     }
 
-    public static func isValidSelection(_ rect: CGRect) -> Bool {
+    public static func isValidSelection(_ rect: CGRect, minimumEdge: CGFloat = SnipGeometry.minimumSelectionEdge) -> Bool {
         rect.origin.x.isFinite && rect.origin.y.isFinite
             && rect.width.isFinite && rect.height.isFinite
-            && rect.width >= minimumSelectionEdge
-            && rect.height >= minimumSelectionEdge
+            && rect.width >= minimumEdge
+            && rect.height >= minimumEdge
     }
 
     /// Selection (global bottom-left-origin points) → pixel rect in the

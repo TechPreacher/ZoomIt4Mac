@@ -68,4 +68,18 @@ struct HotkeyConfigurationTests {
         #expect(config.combo(for: .snip) == KeyCombo(keyCode: 22, modifiers: .control))
         #expect(config.combo(for: .ocrSnip) == KeyCombo(keyCode: 22, modifiers: [.control, .option]))
     }
+
+    @Test func regionRecordDefaultIsCtrlShift5() {
+        #expect(HotkeyConfiguration.default.combo(for: .regionRecord) == KeyCombo(keyCode: 23, modifiers: [.control, .shift]))
+        #expect(HotkeyConfiguration.default.conflictingCombos().isEmpty)
+    }
+
+    // Migration: hotkey JSON persisted before regionRecord existed has no
+    // regionRecord key — combo(for:) must fall back to ⌃⇧5. Pinned.
+    @Test func persistedJSONWithoutRegionRecordFallsBackToCtrlShift5() throws {
+        let json = #"{"bindings":{"toggleRecord":{"keyCode":23,"modifiers":1}}}"#
+        let config = try JSONDecoder().decode(HotkeyConfiguration.self, from: Data(json.utf8))
+        #expect(config.combo(for: .toggleRecord) == KeyCombo(keyCode: 23, modifiers: .control))
+        #expect(config.combo(for: .regionRecord) == KeyCombo(keyCode: 23, modifiers: [.control, .shift]))
+    }
 }

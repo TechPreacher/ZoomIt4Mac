@@ -51,7 +51,7 @@ Menu bar app (`LSUIElement`) — no Dock icon.
 
 ## Permissions
 
-Zoom, Live Zoom, Snip, and Screen Recording require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required. Recording with the microphone enabled additionally asks for **Microphone** permission (optional — recordings proceed without it if denied).
+Zoom, Live Zoom, Snip, OCR Snip, and Screen Recording require **Screen Recording** permission (System Settings → Privacy & Security → Screen & System Audio Recording). Draw and Type work without it. No Accessibility permission is required. Recording with the microphone enabled additionally asks for **Microphone** permission (optional — recordings proceed without it if denied). OCR Snip's text recognition runs entirely on-device and needs no permission of its own.
 
 ## Install
 

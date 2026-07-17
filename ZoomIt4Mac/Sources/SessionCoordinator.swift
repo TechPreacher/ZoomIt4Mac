@@ -667,14 +667,19 @@ final class SessionCoordinator {
         }
         TextRecognitionService.recognizeText(in: cropped) { [weak self] lines in
             guard let self else { return }
-            let screen = NSScreen.screens.first { $0.displayID == displayID } ?? NSScreen.main
-            guard let screen else { return }
-            if lines.isEmpty {
-                self.snipNotice.show(on: screen, message: "No text found")
-            } else {
+            if !lines.isEmpty {
                 let pasteboard = NSPasteboard.general
                 pasteboard.clearContents()
                 pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
+            }
+            let screen = NSScreen.screens.first { $0.displayID == displayID } ?? NSScreen.main
+            guard let screen else {
+                NSLog("ocr snip: no screen available for notice HUD")
+                return
+            }
+            if lines.isEmpty {
+                self.snipNotice.show(on: screen, message: "No text found")
+            } else {
                 self.snipNotice.show(
                     on: screen,
                     message: lines.count == 1 ? "1 line copied" : "\(lines.count) lines copied"

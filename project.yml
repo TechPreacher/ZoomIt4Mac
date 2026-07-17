@@ -4,6 +4,10 @@ options:
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.4
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -38,6 +42,7 @@ targets:
     dependencies:
       - target: ZoomItCore
         embed: true
+      - package: Sparkle
     info:
       path: ZoomIt4Mac/Info.plist
       properties:
@@ -48,6 +53,9 @@ targets:
         NSMicrophoneUsageDescription: ZoomIt4Mac records microphone audio in screen recordings when enabled in Settings.
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        SUFeedURL: https://raw.githubusercontent.com/TechPreacher/ZoomIt4Mac/main/appcast.xml
+        SUEnableAutomaticChecks: true
+        SUPublicEDKey: IW/EctscwouCIvm4z1+GNqE1RgaG5UN4RnwHV3vnE6M=
     entitlements:
       path: ZoomIt4Mac/ZoomIt4Mac.entitlements
       properties:

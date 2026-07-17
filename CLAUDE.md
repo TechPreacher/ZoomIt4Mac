@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ZoomIt4Mac — a native macOS re-implementation of Sysinternals ZoomIt (Windows), in Swift. Menu bar app (`LSUIElement`), macOS 14+, Swift 6.
 
-Implemented: **Zoom** (⌃1, frozen-screen magnify), **Live Zoom** (⌃4, SCStream), **Draw** (⌃2, pen/shapes/colors/undo/boards, highlighter `H` + blur `X` pens) with **Type** (T), **Break Timer** (⌃3), **Screen Recording** (⌃5, mic/system audio), **Snip** (⌃6, region to clipboard), rebindable hotkeys, settings + shortcuts-reference windows, ⌘S/⌘C export. Remaining deferred features (DemoType, …) are catalogued with implementation notes in `docs/superpowers/specs/2026-07-14-zoomit4mac-v1-design.md`; per-feature specs and plans live under `docs/superpowers/`.
+Implemented: **Zoom** (⌃1, frozen-screen magnify), **Live Zoom** (⌃4, SCStream), **Draw** (⌃2, pen/shapes/colors/undo/boards, highlighter `H` + blur `X` pens) with **Type** (T), **Break Timer** (⌃3), **Screen Recording** (⌃5, mic/system audio, HEVC default / H.264 option with tuned bitrates), **Snip** (⌃6, region to clipboard), rebindable hotkeys, settings + shortcuts-reference windows, ⌘S/⌘C export, **Sparkle 2 updater** (menu item + auto-check; feed = `appcast.xml` on `main`). Remaining deferred features (DemoType, …) are catalogued with implementation notes in `docs/superpowers/specs/2026-07-14-zoomit4mac-v1-design.md`; per-feature specs and plans live under `docs/superpowers/`.
 
 ## Commands
 
@@ -24,7 +24,7 @@ xcodebuild -project ZoomIt4Mac.xcodeproj -scheme ZoomIt4Mac test -destination 'p
   -only-testing:ZoomItCoreTests/SessionLifecycleTests/zoomHotkeyStartsCapture
 ```
 
-`ZoomIt4Mac.xcodeproj` and `ZoomIt4Mac/Info.plist` are **generated** by XcodeGen from `project.yml` and not committed — edit `project.yml`, never the generated files. Release: `scripts/release.sh` (Developer ID + notarization; needs one-time credential setup, see script header).
+`ZoomIt4Mac.xcodeproj` and `ZoomIt4Mac/Info.plist` are **generated** by XcodeGen from `project.yml` and not committed — edit `project.yml`, never the generated files. Release: `scripts/release.sh` (Developer ID + notarization + Sparkle appcast regeneration; one-time credential + EdDSA-key setup and the per-release checklist are in the script header — every release must bump `CURRENT_PROJECT_VERSION`, and the GitHub release must be published before the appcast commit reaches `main`).
 
 ## Architecture
 
@@ -57,6 +57,7 @@ input (hotkeys/keys/mouse/timers) → SessionCoordinator.send(event)
 - LaunchServices caches app icons per bundle path; About panel icon is set explicitly at launch for this reason.
 - CI runs an older Xcode/SDK than local: SDK types may lack Sendable annotations there (`@preconcurrency import ScreenCaptureKit`, `nonisolated(unsafe)` IOSurface hop). Watch PR CI after concurrency-adjacent changes.
 - Hardened runtime **silently auto-denies** protected devices without the matching entitlement — no TCC prompt, no Privacy-pane entry, `requestAccess` just returns false. The usage string alone is NOT enough: microphone needs `com.apple.security.device.audio-input` (declared in project.yml's `entitlements:` block; camera would need its equivalent).
+- Sparkle: `generate_appcast` **silently skips signing** archives whose embedded app lacks `SUPublicEDKey` in its Info.plist (bit the pre-Sparkle v1.0.0 zip; `sign_update` + hand-patching the enclosure was the one-time fix). The EdDSA private key lives in the login Keychain and is unreadable from headless shells (ACL prompt needs GUI) — run signing steps in an interactive terminal. The auto-check flag is deliberately NOT mirrored into core `Settings` JSON (Sparkle's UserDefaults is the single source of truth — don't "fix" this). The Sparkle package is pinned `exactVersion` in project.yml (no committed lockfile since the .xcodeproj is generated); bump it deliberately, never float it.
 
 ## Testing expectations
 

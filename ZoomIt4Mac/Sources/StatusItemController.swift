@@ -9,6 +9,7 @@ final class StatusItemController: NSObject {
     private let onBreak: () -> Void
     private let onRecord: () -> Void
     private let onSnip: () -> Void
+    private let onOcrSnip: () -> Void
     private let onShortcuts: () -> Void
     private let onSettings: () -> Void
     private let onCheckForUpdates: () -> Void
@@ -21,6 +22,7 @@ final class StatusItemController: NSObject {
         onBreak: @escaping () -> Void,
         onRecord: @escaping () -> Void,
         onSnip: @escaping () -> Void,
+        onOcrSnip: @escaping () -> Void,
         onShortcuts: @escaping () -> Void,
         onSettings: @escaping () -> Void,
         onCheckForUpdates: @escaping () -> Void
@@ -32,6 +34,7 @@ final class StatusItemController: NSObject {
         self.onBreak = onBreak
         self.onRecord = onRecord
         self.onSnip = onSnip
+        self.onOcrSnip = onOcrSnip
         self.onShortcuts = onShortcuts
         self.onSettings = onSettings
         self.onCheckForUpdates = onCheckForUpdates
@@ -50,6 +53,7 @@ final class StatusItemController: NSObject {
         recordItem = makeItem("Start Recording", action: #selector(recordTapped), key: "5")
         menu.addItem(recordItem)
         menu.addItem(makeItem("Snip", action: #selector(snipTapped), key: "6"))
+        menu.addItem(makeItem("OCR Snip", action: #selector(ocrSnipTapped), key: "6", modifiers: [.control, .option]))
         menu.addItem(.separator())
         menu.addItem(makeItem("Keyboard Shortcuts…", action: #selector(shortcutsTapped), key: ""))
         menu.addItem(makeItem("Settings…", action: #selector(settingsTapped), key: ","))
@@ -64,9 +68,9 @@ final class StatusItemController: NSObject {
         statusItem.menu = menu
     }
 
-    private func makeItem(_ title: String, action: Selector, key: String) -> NSMenuItem {
+    private func makeItem(_ title: String, action: Selector, key: String, modifiers: NSEvent.ModifierFlags = [.control]) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
-        item.keyEquivalentModifierMask = key == "," ? [.command] : [.control]
+        item.keyEquivalentModifierMask = key == "," ? [.command] : modifiers
         item.target = self
         return item
     }
@@ -77,6 +81,7 @@ final class StatusItemController: NSObject {
     @objc private func breakTapped() { onBreak() }
     @objc private func recordTapped() { onRecord() }
     @objc private func snipTapped() { onSnip() }
+    @objc private func ocrSnipTapped() { onOcrSnip() }
     @objc private func shortcutsTapped() { onShortcuts() }
     @objc private func settingsTapped() { onSettings() }
     @objc private func checkForUpdatesTapped() { onCheckForUpdates() }

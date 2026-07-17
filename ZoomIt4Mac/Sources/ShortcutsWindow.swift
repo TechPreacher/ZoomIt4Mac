@@ -23,6 +23,7 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleBreak)), action: "Break Timer — full-screen countdown"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .toggleRecord)), action: "Recording — start/stop recording the screen"),
             Shortcut(keys: comboLabel(hotkeys.combo(for: .snip)), action: "Snip — copy a screen region"),
+            Shortcut(keys: comboLabel(hotkeys.combo(for: .ocrSnip)), action: "OCR Snip — copy text in a region"),
         ]),
         ShortcutSection(title: "While zooming", shortcuts: [
             Shortcut(keys: "Scroll / Pinch / ↑ ↓", action: "Change zoom level (1×–8×)"),
@@ -38,8 +39,8 @@ private func makeSections(hotkeys: HotkeyConfiguration) -> [ShortcutSection] {
         ]),
         ShortcutSection(title: "While snipping", shortcuts: [
             Shortcut(keys: "Drag", action: "Select the region"),
-            Shortcut(keys: "Release", action: "Copy the region to the clipboard"),
-            Shortcut(keys: "⌥ Release", action: "Copy and save as PNG"),
+            Shortcut(keys: "Release", action: "Copy the region (or its text, for OCR Snip)"),
+            Shortcut(keys: "⌥ Release", action: "Copy and save as PNG (image snip only)"),
             Shortcut(keys: "Right click / Esc", action: "Cancel"),
         ]),
         ShortcutSection(title: "While drawing", shortcuts: [

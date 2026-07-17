@@ -366,6 +366,13 @@ Expected: `appcast.xml` at repo root with one `<item>` — `sparkle:version` = 1
 
 Note: that exact asset name may not exist on the v1.0.0 release — acceptable: no client ever downloads the entry matching its own current version; the entry exists so v1.0.0 clients see "you're up to date". From the next release on, `scripts/release.sh` (Task 6) produces correctly named assets.
 
+> **As-built note:** the v1.0.0 enclosure was signed manually via `sign_update`
+> and the `sparkle:edSignature` attribute hand-patched into the appcast,
+> because `generate_appcast` skips signing archives whose embedded app lacks
+> `SUPublicEDKey` in its Info.plist (true for the pre-Sparkle v1.0.0 build).
+> From the next release on, the app embeds the key and `generate_appcast`
+> signs automatically — no workaround needed.
+
 - [ ] **Step 3: Sanity-check the feed is valid XML**
 
 Run:

@@ -3,12 +3,12 @@
     <channel>
         <title>ZoomIt4Mac</title>
         <item>
-            <title>1.0.0</title>
-            <pubDate>Fri, 17 Jul 2026 10:39:28 +0200</pubDate>
-            <sparkle:version>1</sparkle:version>
-            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <title>1.1.0</title>
+            <pubDate>Fri, 17 Jul 2026 19:21:06 +0200</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/TechPreacher/ZoomIt4Mac/releases/download/v1.0.0/ZoomIt4Mac-1.0.0.zip" length="1976682" type="application/octet-stream" sparkle:edSignature="vQu/b9QxF0TBiJSFOy+StbO1taf1zGR1d75t8+WUj5fkp3oeLLrnBVsIC4bEs6Qk7deR06GCtllfThOZ3AgWDw=="/>
+            <enclosure url="https://github.com/TechPreacher/ZoomIt4Mac/releases/download/v1.1.0/ZoomIt4Mac-1.1.0.zip" length="3066815" type="application/octet-stream" sparkle:edSignature="TpyS9AZT7QnrgNL8Upju0pYDsmFHTmJ0fVcDK1vn7WLJwPAzpKWbwDm8nvI19cxwNIUt/odKoFNM3X/+x83TCw=="/>
         </item>
     </channel>
 </rss>

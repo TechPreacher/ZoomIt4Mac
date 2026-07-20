@@ -69,3 +69,4 @@ input (hotkeys/keys/mouse/timers) → SessionCoordinator.send(event)
 
 - Feature work: spec in `docs/superpowers/specs/`, plan in `docs/superpowers/plans/`, then implement on a `feature/*` branch; PRs to `main` on github.com/TechPreacher/ZoomIt4Mac (switch gh account to `TechPreacher` for PR operations).
 - `.superpowers/` is local scratch (gitignored) — session ledgers and reports live there.
+- For implementation tasks, use subagents.
